@@ -1,0 +1,18 @@
+# artifacts (runtime outputs)
+artifacts/
+**/artifacts/
+
+# colcon build outputs
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editor / os
+.vscode/
+.DS_Store
