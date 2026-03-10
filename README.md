@@ -65,6 +65,8 @@ artifacts/ をホスト側に出す（run_id ごとに保存される）：
 ```
 docker run --rm -it \
   -e TZ=Asia/Tokyo \
+  -e HOST_UID=$(id -u) \
+  -e HOST_GID=$(id -g) \
   --device /dev/AI \
   --device /dev/AO \
   -v ~/sample_project/artifacts:/artifacts \
@@ -157,6 +159,7 @@ docker run --rm -it \
 コンテナが root で書き込むと、ホスト側の成果物が root 所有になり削除できない場合があります。
 
 ### 対策1：実行後に所有権をホストユーザへ戻す
+OST_UID と HOST_GID の両方がある時だけ 処理が呼ばれます。
 ```
 docker run --rm -it \
   -e TZ=Asia/Tokyo \
