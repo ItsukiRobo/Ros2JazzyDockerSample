@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # venv に rosbags
 RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/python -m pip install --upgrade pip \
- && /opt/venv/bin/pip install --no-cache-dir rosbags
+ && /opt/venv/bin/pip install --no-cache-dir rosbags catkin_pkg
 
 ENV PATH="/opt/venv/bin:${PATH}"
 
