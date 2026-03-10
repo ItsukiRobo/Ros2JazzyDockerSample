@@ -2,10 +2,27 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    talker = Node(
-        package='demo_nodes_cpp',
-        executable='talker',
-        name='talker',
-        output='screen'
+    # Analog Input
+    ai_node = Node(
+        package='control_box',
+        executable='ai1616llpe_test',
+        name='AI_board',
+        output='screen',
+        parameters=[{'update_rate': 1000.0}],
     )
-    return LaunchDescription([talker])
+    # Analog Output
+    ao_node = Node(
+        package='control_box',
+        executable='ao1608llpe_test',
+        name='AO_board',
+        output='screen',
+        parameters=[{
+            'update_rate': 1000.0,
+            'subscribe_topic': '/actuators/valve_voltage',
+        }],
+    )
+
+    return LaunchDescription([
+        ai_node,
+        ao_node,
+    ])
