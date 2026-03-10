@@ -16,3 +16,13 @@ venv/
 # editor / os
 .vscode/
 .DS_Store
+
+# kernel module build outputs
+board_drivers/**/*.o
+board_drivers/**/*.ko
+board_drivers/**/*.mod
+board_drivers/**/*.mod.c
+board_drivers/**/*.mod.o
+board_drivers/**/.*
+board_drivers/**/Module.symvers
+board_drivers/**/modules.order

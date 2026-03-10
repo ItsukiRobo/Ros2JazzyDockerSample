@@ -19,6 +19,8 @@ ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /ros2_ws
 COPY ros2_ws /ros2_ws
 
+RUN rm -rf /ros2_ws/build /ros2_ws/install /ros2_ws/log
+
 RUN source /opt/ros/jazzy/setup.bash && \
     colcon build --symlink-install
 

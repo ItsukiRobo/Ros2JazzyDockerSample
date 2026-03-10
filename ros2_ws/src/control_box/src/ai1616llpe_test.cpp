@@ -8,6 +8,9 @@
 #include <chrono>
 #include <memory>
 #include <cmath>
+#include <cerrno>
+#include <cstring>
+#include <iostream>
 
 using namespace std::chrono_literals;
 
@@ -34,9 +37,22 @@ int BoardUpdate()
 {
   char* bufptr = buf;
 
-  if(read(fd, buf, sizeof(buf)) == -1)
+  if(fd == -1)
   {
-    std::cout << "Update error: AI-1616L-LPE" << "\n";
+    return -1;
+  }
+
+  const ssize_t bytes_read = read(fd, buf, sizeof(buf));
+  if(bytes_read != static_cast<ssize_t>(sizeof(buf)))
+  {
+    if(bytes_read == -1)
+    {
+      std::cerr << "Update error: AI-1616L-LPE: " << std::strerror(errno) << "\n";
+    }
+    else
+    {
+      std::cerr << "Update error: AI-1616L-LPE: short read (" << bytes_read << " bytes)\n";
+    }
     return -1;
   }
 
@@ -78,7 +94,10 @@ private:
   {
     auto msg = std_msgs::msg::Float32MultiArray();
     msg.data.clear();
-    BoardUpdate();
+    if(BoardUpdate() != 0)
+    {
+      return;
+    }
 
     for(int i = 0; i < 16; i++)
     {
@@ -98,7 +117,11 @@ int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
 
-  BoardOpen();  
+  if(BoardOpen() != 0)
+  {
+    rclcpp::shutdown();
+    return -1;
+  }
 
   rclcpp::spin(std::make_shared<AIPublisher>());
 

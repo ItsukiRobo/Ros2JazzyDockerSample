@@ -10,6 +10,9 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cerrno>
+#include <cstring>
+#include <iostream>
 #include <memory>
 
 int fd = -1;
@@ -33,9 +36,22 @@ int BoardUpdate()
 {
   char* bufptr = buf;
 
-  if(read(fd, buf, sizeof(buf)) == -1)
+  if(fd == -1)
   {
-    // RCLCPP_INFO(this->get_logger(), "Update error: AI-1616L-LPE");
+    return -1;
+  }
+
+  const ssize_t bytes_read = read(fd, buf, sizeof(buf));
+  if(bytes_read != static_cast<ssize_t>(sizeof(buf)))
+  {
+    if(bytes_read == -1)
+    {
+      std::cerr << "Update error: AI-1616L-LPE: " << std::strerror(errno) << "\n";
+    }
+    else
+    {
+      std::cerr << "Update error: AI-1616L-LPE: short read (" << bytes_read << " bytes)\n";
+    }
     return -1;
   }
 
@@ -69,7 +85,11 @@ int main(int argc, char **argv)
   rclcpp::Rate loop_rate(update_rate);   // Hz
   // rclcpp::Rate loop_rate(10);   // Hz
 
-  BoardOpen();
+  if(BoardOpen() != 0)
+  {
+    rclcpp::shutdown();
+    return -1;
+  }
 
   std_msgs::msg::Float32MultiArray msg;
 
@@ -77,7 +97,12 @@ int main(int argc, char **argv)
   while (rclcpp::ok())
   {
     msg.data.clear();
-    BoardUpdate();
+    if(BoardUpdate() != 0)
+    {
+      rclcpp::spin_some(node);
+      loop_rate.sleep();
+      continue;
+    }
 
     for(int i = 0; i < 8; i++)
     // for(int i = 0; i < 16; i++)
@@ -97,5 +122,4 @@ int main(int argc, char **argv)
 
   return 0;
 }
-
 
