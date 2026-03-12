@@ -48,6 +48,9 @@ ament_target_dependencies(cnt3204mtlpe_test rclcpp std_msgs)
 add_executable(pse5xx src/pse5xx.cpp)
 ament_target_dependencies(pse5xx rclcpp std_msgs)
 
+add_executable(loadcell src/loadcell.cpp)
+ament_target_dependencies(loadcell rclcpp std_msgs)
+
 install(TARGETS
   ai1616llpe
   ai1616llpe_test
@@ -56,6 +59,7 @@ install(TARGETS
   cnt3204mtlpe
   cnt3204mtlpe_test
   pse5xx
+  loadcell
   DESTINATION lib/${PROJECT_NAME}
   )
 

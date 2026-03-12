@@ -15,6 +15,16 @@ def generate_launch_description():
         'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa'],
         'publish_topic_name': '/pressure',
     }
+    loadcell_params = {
+        'subscribe_topic_name': 'ai1616llpe/voltage',
+        'publish_topic_name': '/loadcell',
+        'signal_plus_idx': [0],
+        'signal_minus_idx': [1],
+        'cutoff_frequency_hz': [0.0],
+        'rated_load_n': [1.0],
+        'rated_output_voltage_v': [1.0],
+        'zero_balance_voltage_v': [0.0],
+    }
 
     # Analog Input
     ai_node = Node(
@@ -40,9 +50,18 @@ def generate_launch_description():
         output='screen',
         parameters=[pse5xx_params],
     )
+    # Load Cell
+    loadcell_node = Node(
+        package='peripheral',
+        executable='loadcell',
+        name='loadcell',
+        output='screen',
+        parameters=[loadcell_params],
+    )
 
     return LaunchDescription([
         ai_node,
         ao_node,
         pse5xx_node,
+        loadcell_node,
     ])
