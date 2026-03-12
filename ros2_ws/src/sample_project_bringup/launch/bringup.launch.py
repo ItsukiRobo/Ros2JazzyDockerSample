@@ -4,7 +4,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # Analog Input
     ai_node = Node(
-        package='control_box',
+        package='peripheral',
         executable='ai1616llpe_test',
         name='AI_board',
         output='screen',
@@ -12,7 +12,7 @@ def generate_launch_description():
     )
     # Analog Output
     ao_node = Node(
-        package='control_box',
+        package='peripheral',
         executable='ao1608llpe_test',
         name='AO_board',
         output='screen',

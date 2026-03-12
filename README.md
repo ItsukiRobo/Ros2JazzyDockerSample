@@ -72,7 +72,7 @@ docker run --rm -it \
   -v ~/sample_project/artifacts:/artifacts \
   sample_project:jazzy
 ```
-AI-1616L-LPE / AO-1608L-LPE を使う場合は、対応する `/dev/AI` と `/dev/AO` をコンテナへ渡す必要があります。渡していない場合、`control_box` ノードはデバイス open に失敗して終了します。
+AI-1616L-LPE / AO-1608L-LPE を使う場合は、対応する `/dev/AI` と `/dev/AO` をコンテナへ渡す必要があります。渡していない場合、`peripheral` ノードはデバイス open に失敗して終了します。
 
 ## 停止
 実行中のターミナルで Ctrl + C
