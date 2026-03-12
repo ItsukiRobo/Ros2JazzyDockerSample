@@ -15,11 +15,11 @@ enum class PseType
   k1MPa,
 };
 
-class Pse53xNode : public rclcpp::Node
+class Pse5xxNode : public rclcpp::Node
 {
 public:
-  Pse53xNode()
-  : Node("pse53x")
+  Pse5xxNode()
+  : Node("pse5xx")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "ai1616llpe/voltage");
     this->declare_parameter<std::vector<int64_t>>("sensor_idx", {0});
@@ -54,11 +54,11 @@ public:
       publish_topic_name_, rclcpp::QoS(10));
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
       subscribe_topic_name_, rclcpp::QoS(10),
-      std::bind(&Pse53xNode::topic_callback, this, std::placeholders::_1));
+      std::bind(&Pse5xxNode::topic_callback, this, std::placeholders::_1));
 
     RCLCPP_INFO(
       this->get_logger(),
-      "pse53x subscribes to '%s' and publishes to '%s'",
+      "pse5xx subscribes to '%s' and publishes to '%s'",
       subscribe_topic_name_.c_str(), publish_topic_name_.c_str());
   }
 
@@ -131,7 +131,7 @@ private:
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<Pse53xNode>());
+  rclcpp::spin(std::make_shared<Pse5xxNode>());
   rclcpp::shutdown();
   return 0;
 }
