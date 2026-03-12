@@ -9,7 +9,7 @@ def generate_launch_description():
         'update_rate': 1000.0,
         'subscribe_topic': '/actuators/valve_voltage',
     }
-    pse5xx_params = {
+    pressure_sensor_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
         'sensor_idx': [0, 1, 2, 3, 4],
         'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa'],
@@ -43,12 +43,12 @@ def generate_launch_description():
         parameters=[ao_params],
     )
     # Pressure Sensor
-    pse5xx_node = Node(
+    pressure_sensor_node = Node(
         package='peripheral',
-        executable='pse5xx',
-        name='pse5xx',
+        executable='pressure_sensor',
+        name='pressure_sensor',
         output='screen',
-        parameters=[pse5xx_params],
+        parameters=[pressure_sensor_params],
     )
     # Load Cell
     loadcell_node = Node(
@@ -62,6 +62,6 @@ def generate_launch_description():
     return LaunchDescription([
         ai_node,
         ao_node,
-        pse5xx_node,
+        pressure_sensor_node,
         loadcell_node,
     ])

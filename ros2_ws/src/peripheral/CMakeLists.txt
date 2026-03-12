@@ -45,8 +45,8 @@ ament_target_dependencies(cnt3204mtlpe rclcpp std_msgs)
 add_executable(cnt3204mtlpe_test src/cnt3204mtlpe_test.cpp)
 ament_target_dependencies(cnt3204mtlpe_test rclcpp std_msgs)
 
-add_executable(pse5xx src/pse5xx.cpp)
-ament_target_dependencies(pse5xx rclcpp std_msgs)
+add_executable(pressure_sensor src/pressure_sensor.cpp)
+ament_target_dependencies(pressure_sensor rclcpp std_msgs)
 
 add_executable(loadcell src/loadcell.cpp)
 ament_target_dependencies(loadcell rclcpp std_msgs)
@@ -58,7 +58,7 @@ install(TARGETS
   ao1608llpe_test
   cnt3204mtlpe
   cnt3204mtlpe_test
-  pse5xx
+  pressure_sensor
   loadcell
   DESTINATION lib/${PROJECT_NAME}
   )
