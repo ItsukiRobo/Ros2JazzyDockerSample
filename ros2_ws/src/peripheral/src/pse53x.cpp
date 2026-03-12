@@ -9,6 +9,12 @@
 #include <string>
 #include <vector>
 
+enum class PseType
+{
+  k101kPa,
+  k1MPa,
+};
+
 class Pse53xNode : public rclcpp::Node
 {
 public:
@@ -40,11 +46,8 @@ public:
       if (sensor_idx_param[i] < 0) {
         throw std::runtime_error("sensor_idx must contain only non-negative values");
       }
-      if (!is_supported_sensor_type(sensor_type_param[i])) {
-        throw std::runtime_error("sensor_type_str must contain only \"101kPa\" or \"1MPa\"");
-      }
       sensor_indices_.push_back(static_cast<size_t>(sensor_idx_param[i]));
-      sensor_types_.push_back(sensor_type_param[i]);
+      sensor_types_.push_back(parse_sensor_type(sensor_type_param[i]));
     }
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -65,9 +68,15 @@ private:
   static constexpr float kRange101kPa = 101.0f;
   static constexpr float kRange1MPa = 1000.0f;
 
-  static bool is_supported_sensor_type(const std::string & sensor_type)
+  static PseType parse_sensor_type(const std::string & sensor_type)
   {
-    return sensor_type == "101kPa" || sensor_type == "1MPa";
+    if (sensor_type == "101kPa") {
+      return PseType::k101kPa;
+    }
+    if (sensor_type == "1MPa") {
+      return PseType::k1MPa;
+    }
+    throw std::runtime_error("sensor_type_str must contain only \"101kPa\" or \"1MPa\"");
   }
 
   static float clamp01(float value)
@@ -75,15 +84,15 @@ private:
     return std::max(0.0f, std::min(1.0f, value));
   }
 
-  float convert_voltage_to_pressure(float voltage, const std::string & sensor_type) const
+  float convert_voltage_to_pressure(float voltage, PseType sensor_type) const
   {
     // Assume a linear 1-5 V analog output scaled to each sensor's full range.
     const float normalized = clamp01((voltage - kVoltageMin) / (kVoltageMax - kVoltageMin));
-    if (sensor_type == "101kPa") {
-      return normalized * kRange101kPa;
-    }
-    if (sensor_type == "1MPa") {
-      return normalized * kRange1MPa;
+    switch (sensor_type) {
+      case PseType::k101kPa:
+        return normalized * kRange101kPa;
+      case PseType::k1MPa:
+        return normalized * kRange1MPa;
     }
     return std::numeric_limits<float>::quiet_NaN();
   }
@@ -114,7 +123,7 @@ private:
   std::string subscribe_topic_name_;
   std::string publish_topic_name_;
   std::vector<size_t> sensor_indices_;
-  std::vector<std::string> sensor_types_;
+  std::vector<PseType> sensor_types_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 };
