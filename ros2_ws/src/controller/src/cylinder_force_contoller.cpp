@@ -90,14 +90,10 @@ private:
   {
     return std::max(min_value, std::min(value, max_value));
   }
-
-  static constexpr double circle_area(double diameter_m)
-  {
-    return kPi * diameter_m * diameter_m * 0.25;
-  }
-
-  static constexpr double kHeadAreaM2 = circle_area(kCylinderDiameterM);
-  static constexpr double kRodAreaM2 = kHeadAreaM2 - circle_area(kRodDiameterM);
+  static constexpr double kHeadAreaM2 =
+    kPi * kCylinderDiameterM * kCylinderDiameterM / 4.0;
+  static constexpr double kRodAreaM2 =
+    kHeadAreaM2 - (kPi * kRodDiameterM * kRodDiameterM / 4.0);
   static_assert(kRodAreaM2 > 0.0, "rod area must be smaller than cylinder area");
 
   static double pressure_from_force_kpa(double force_n, double area_m2)
