@@ -59,6 +59,7 @@ public:
     rated_load_n_.reserve(loadcell_count);
     rated_output_voltage_v_.reserve(loadcell_count);
     zero_balance_voltage_v_.reserve(loadcell_count);
+    lpf_.reserve(loadcell_count);
 
     for (size_t i = 0; i < loadcell_count; ++i) {
       if (signal_plus_idx_param[i] < 0 || signal_minus_idx_param[i] < 0) {
