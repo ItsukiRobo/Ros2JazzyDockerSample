@@ -55,7 +55,6 @@ public:
 
     signal_plus_indices_.reserve(loadcell_count);
     signal_minus_indices_.reserve(loadcell_count);
-    cutoff_frequency_hz_.reserve(loadcell_count);
     rated_load_n_.reserve(loadcell_count);
     rated_output_voltage_v_.reserve(loadcell_count);
     zero_balance_voltage_v_.reserve(loadcell_count);
@@ -77,11 +76,10 @@ public:
 
       signal_plus_indices_.push_back(static_cast<size_t>(signal_plus_idx_param[i]));
       signal_minus_indices_.push_back(static_cast<size_t>(signal_minus_idx_param[i]));
-      cutoff_frequency_hz_.push_back(cutoff_frequency_param[i]);
       rated_load_n_.push_back(rated_load_param[i]);
       rated_output_voltage_v_.push_back(rated_output_voltage_param[i]);
       zero_balance_voltage_v_.push_back(zero_balance_voltage_param[i]);
-      lpf_.emplace_back(cutoff_frequency_param[i], 0.0);
+      lpf_.emplace_back(cutoff_frequency_param[i], 500.0);
     }
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -143,7 +141,6 @@ private:
   std::string publish_topic_name_;
   std::vector<size_t> signal_plus_indices_;
   std::vector<size_t> signal_minus_indices_;
-  std::vector<double> cutoff_frequency_hz_;
   std::vector<double> rated_load_n_;
   std::vector<double> rated_output_voltage_v_;
   std::vector<double> zero_balance_voltage_v_;
