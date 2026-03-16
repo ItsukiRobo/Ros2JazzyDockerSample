@@ -10,7 +10,6 @@ namespace
 {
 
 constexpr double kPi = 3.14159265358979323846;
-constexpr double kTwoPi = 6.28318530717958647692;
 
 void validate_cutoff_frequency(double cutoff_frequency_hz)
 {
