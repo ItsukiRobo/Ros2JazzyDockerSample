@@ -14,15 +14,15 @@ constexpr double kTwoPi = 6.28318530717958647692;
 
 void validate_cutoff_frequency(double cutoff_frequency_hz)
 {
-  if (cutoff_frequency_hz < 0.0) {
-    throw std::runtime_error("cutoff_frequency_hz must be non-negative");
+  if (!std::isfinite(cutoff_frequency_hz) || cutoff_frequency_hz < 0.0) {
+    throw std::runtime_error("cutoff_frequency_hz must be finite and non-negative");
   }
 }
 
 void validate_sampling_period(double sampling_period_s)
 {
-  if (sampling_period_s < 0.0) {
-    throw std::runtime_error("sampling_period_s must be non-negative");
+  if (!std::isfinite(sampling_period_s) || sampling_period_s < 0.0) {
+    throw std::runtime_error("sampling_period_s must be finite and non-negative");
   }
 }
 
