@@ -11,7 +11,7 @@ def generate_launch_description():
     }
     pressure_sensor_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
-        'sensor_idx': [0, 1, 2, 3, 4],
+        'sensor_idx': [0, 1, 2, 3, 5],
         'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa'],
         'publish_topic_name': '/pressure',
     }
@@ -29,8 +29,8 @@ def generate_launch_description():
         'subscribe_topic_name': '/pressure',
         'publish_topic_name': '/actuators/valve_voltage',
         'head_pressure_index': 0,
-        'rod_pressure_index': 1,
-        'control_period_s': 0.01,
+        'rod_pressure_index': 2,
+        'control_period_s': 0.001,
         'kp': 0.02,
         'ki': 0.0,
         'kd': 0.0,

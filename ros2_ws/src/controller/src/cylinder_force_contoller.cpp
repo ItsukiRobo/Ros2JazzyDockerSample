@@ -76,8 +76,8 @@ private:
   };
 
   static constexpr double kPi = 3.14159265358979323846;
-  static constexpr double kCylinderDiameterM = 0.032;
-  static constexpr double kRodDiameterM = 0.012;
+  static constexpr double kCylinderDiameterM = 0.020;
+  static constexpr double kRodDiameterM = 0.010;
   static constexpr double kBasePressureKPa = 50.0;
   static constexpr double kMaxPressureKPa = 1000.0;
   static constexpr double kMinPressureKPa = 0.0;
