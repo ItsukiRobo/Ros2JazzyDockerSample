@@ -13,6 +13,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>signal_utility</depend>
   <depend>std_msgs</depend>
 
   <depend>example_interfaces</depend>

@@ -23,6 +23,7 @@ endif()
 # find_package(<dependency> REQUIRED)
 
 find_package(rclcpp REQUIRED)
+find_package(signal_utility REQUIRED)
 find_package(std_msgs REQUIRED)
 
 find_package(example_interfaces REQUIRED)
@@ -49,7 +50,7 @@ add_executable(pressure_sensor src/pressure_sensor.cpp)
 ament_target_dependencies(pressure_sensor rclcpp std_msgs)
 
 add_executable(loadcell src/loadcell.cpp)
-ament_target_dependencies(loadcell rclcpp std_msgs)
+ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
 
 install(TARGETS
   ai1616llpe

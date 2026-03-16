@@ -1,8 +1,8 @@
 #include "rclcpp/rclcpp.hpp"
 
+#include "signal_utility/low_pass_filter.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 
-#include <cmath>
 #include <chrono>
 #include <functional>
 #include <limits>
@@ -80,10 +80,8 @@ public:
       rated_load_n_.push_back(rated_load_param[i]);
       rated_output_voltage_v_.push_back(rated_output_voltage_param[i]);
       zero_balance_voltage_v_.push_back(zero_balance_voltage_param[i]);
+      lpf_.emplace_back(cutoff_frequency_param[i], 0.0);
     }
-
-    has_previous_filtered_value_.assign(loadcell_count, false);
-    previous_filtered_load_n_.assign(loadcell_count, std::numeric_limits<double>::quiet_NaN());
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       publish_topic_name_, rclcpp::QoS(10));
@@ -98,27 +96,6 @@ public:
   }
 
 private:
-  static constexpr double kTwoPi = 6.28318530717958647692;
-
-  double apply_low_pass_filter(double input, size_t loadcell_index, double dt_seconds)
-  {
-    if (!has_previous_filtered_value_[loadcell_index] || cutoff_frequency_hz_[loadcell_index] == 0.0) {
-      previous_filtered_load_n_[loadcell_index] = input;
-      has_previous_filtered_value_[loadcell_index] = true;
-      return input;
-    }
-
-    if (dt_seconds <= 0.0) {
-      return previous_filtered_load_n_[loadcell_index];
-    }
-
-    const double tau = 1.0 / (kTwoPi * cutoff_frequency_hz_[loadcell_index]);
-    const double alpha = dt_seconds / (tau + dt_seconds);
-    previous_filtered_load_n_[loadcell_index] +=
-      alpha * (input - previous_filtered_load_n_[loadcell_index]);
-    return previous_filtered_load_n_[loadcell_index];
-  }
-
   double convert_voltage_to_load(double differential_voltage, size_t loadcell_index) const
   {
     return
@@ -153,7 +130,8 @@ private:
 
       const double differential_voltage = msg->data[plus_index] - msg->data[minus_index];
       const double raw_load_n = convert_voltage_to_load(differential_voltage, i);
-      const double filtered_load_n = apply_low_pass_filter(raw_load_n, i, dt_seconds);
+      lpf_[i].set_sampling_period(dt_seconds);
+      const double filtered_load_n = lpf_[i].update(raw_load_n);
       out_msg.data.push_back(static_cast<float>(filtered_load_n));
     }
 
@@ -169,8 +147,7 @@ private:
   std::vector<double> rated_output_voltage_v_;
   std::vector<double> zero_balance_voltage_v_;
   bool has_previous_sample_time_ = false;
-  std::vector<bool> has_previous_filtered_value_;
-  std::vector<double> previous_filtered_load_n_;
+  std::vector<signal_utility::BilinearLowPassFilter> lpf_;
   std::chrono::steady_clock::time_point previous_sample_time_{};
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
