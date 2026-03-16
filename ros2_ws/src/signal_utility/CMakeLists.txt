@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 
 add_library(signal_utility SHARED
   src/low_pass_filter.cpp
+  src/high_pass_filter.cpp
 )
 
 target_include_directories(signal_utility PUBLIC
