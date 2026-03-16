@@ -105,10 +105,10 @@ private:
     for (size_t i = 0; i < sensor_indices_.size(); ++i) {
       const size_t input_index = sensor_indices_[i];
       if (input_index >= msg->data.size()) {
-        // RCLCPP_WARN_THROTTLE(
-        //   this->get_logger(), *this->get_clock(), 5000,
-        //   "sensor_idx[%zu]=%zu is out of range for input size %zu",
-        //   i, input_index, msg->data.size());
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *this->get_clock(), 5000,
+          "sensor_idx[%zu]=%zu is out of range for input size %zu",
+          i, input_index, msg->data.size());
         out_msg.data.push_back(std::numeric_limits<float>::quiet_NaN());
         continue;
       }
