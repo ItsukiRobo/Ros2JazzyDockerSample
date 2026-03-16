@@ -1,22 +1,13 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>peripheral</name>
+  <name>signal_utility</name>
   <version>0.0.0</version>
-  <description>Examples of analog input reading using rclcpp</description>
+  <description>Shared signal processing utilities for ROS 2 nodes.</description>
   <maintainer email="you@email.com">Your Name</maintainer>
   <license>Apache License 2.0</license>
-  <!-- <description>TODO: Package description</description>
-  <maintainer email="kklab@todo.todo">kklab</maintainer>
-  <license>TODO: License declaration</license> -->
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-
-  <depend>rclcpp</depend>
-  <depend>signal_utility</depend>
-  <depend>std_msgs</depend>
-
-  <depend>example_interfaces</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
