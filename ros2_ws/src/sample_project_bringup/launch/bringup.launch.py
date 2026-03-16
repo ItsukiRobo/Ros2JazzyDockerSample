@@ -25,6 +25,16 @@ def generate_launch_description():
         'rated_output_voltage_v': [1.0],
         'zero_balance_voltage_v': [0.0],
     }
+    cylinder_force_contoller_params = {
+        'subscribe_topic_name': '/pressure',
+        'publish_topic_name': '/actuators/valve_voltage',
+        'head_pressure_index': 0,
+        'rod_pressure_index': 1,
+        'control_period_s': 0.01,
+        'kp': 0.02,
+        'ki': 0.0,
+        'kd': 0.0,
+    }
 
     # Analog Input
     ai_node = Node(
@@ -58,10 +68,19 @@ def generate_launch_description():
         output='screen',
         parameters=[loadcell_params],
     )
+    # Cylinder Force Controller
+    cylinder_force_contoller_node = Node(
+        package='controller',
+        executable='cylinder_force_contoller',
+        name='cylinder_force_contoller',
+        output='screen',
+        parameters=[cylinder_force_contoller_params],
+    )
 
     return LaunchDescription([
         ai_node,
         ao_node,
         pressure_sensor_node,
         loadcell_node,
+        cylinder_force_contoller_node,
     ])
