@@ -17,7 +17,9 @@ public:
   : Node("cylinder_force_contoller")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure");
-    this->declare_parameter<std::string>("publish_topic_name", "/actuators/valve_voltage");
+    this->declare_parameter<std::string>("publish_topic_name", "/controller/output_voltage");
+    this->declare_parameter<std::string>(
+      "debug_publish_topic_name", "/debug/cylinder_force_contoller/targets");
     this->declare_parameter<int>("head_pressure_index", 0);
     this->declare_parameter<int>("rod_pressure_index", 1);
     this->declare_parameter<double>("control_period_s", 0.01);
@@ -27,6 +29,7 @@ public:
 
     subscribe_topic_name_ = this->get_parameter("subscribe_topic_name").as_string();
     publish_topic_name_ = this->get_parameter("publish_topic_name").as_string();
+    debug_publish_topic_name_ = this->get_parameter("debug_publish_topic_name").as_string();
     head_pressure_index_ = this->get_parameter("head_pressure_index").as_int();
     rod_pressure_index_ = this->get_parameter("rod_pressure_index").as_int();
 
@@ -38,20 +41,25 @@ public:
     if (head_pressure_index_ < 0 || rod_pressure_index_ < 0) {
       throw std::runtime_error("pressure indices must be non-negative");
     }
+    if (head_pressure_index_ >= 8 || rod_pressure_index_ >= 8) {
+      throw std::runtime_error("pressure indices must be smaller than 8");
+    }
     if (control_period_s <= 0.0) {
       throw std::runtime_error("control_period_s must be positive");
     }
 
     head_pid_.set_gains(kp, ki, kd);
     head_pid_.set_sampling_period(control_period_s);
-    head_pid_.set_output_limits(kMinVoltageV, kMaxVoltageV);
+    head_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     rod_pid_.set_gains(kp, ki, kd);
     rod_pid_.set_sampling_period(control_period_s);
-    rod_pid_.set_output_limits(kMinVoltageV, kMaxVoltageV);
+    rod_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       publish_topic_name_, rclcpp::QoS(10));
+    debug_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+      debug_publish_topic_name_, rclcpp::QoS(10));
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
       subscribe_topic_name_, rclcpp::QoS(10),
       std::bind(&CylinderForceContollerNode::pressure_callback, this, std::placeholders::_1));
@@ -64,8 +72,9 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "cylinder_force_contoller started. subscribe='%s' publish='%s' period=%.4f s",
-      subscribe_topic_name_.c_str(), publish_topic_name_.c_str(), control_period_s);
+      "cylinder_force_contoller started. subscribe='%s' publish='%s' debug_publish='%s' period=%.4f s",
+      subscribe_topic_name_.c_str(), publish_topic_name_.c_str(),
+      debug_publish_topic_name_.c_str(), control_period_s);
   }
 
 private:
@@ -81,14 +90,25 @@ private:
   static constexpr double kBasePressureKPa = 50.0;
   static constexpr double kMaxPressureKPa = 1000.0;
   static constexpr double kMinPressureKPa = 0.0;
+
+  static constexpr double kVoltageOffsetV = 5.0;
+  static constexpr double kMinCommandVoltageV = -5.0;
+  static constexpr double kMaxCommandVoltageV = 5.0;
+  
   static constexpr double kMinVoltageV = 0.0;
   static constexpr double kMaxVoltageV = 10.0;
   static constexpr double kTargetForceAmplitudeN = 1.0;
   static constexpr double kTargetForceFrequencyHz = 0.1;
+  static constexpr size_t kOutputChannelCount = 8;
 
   static double clamp(double value, double min_value, double max_value)
   {
     return std::max(min_value, std::min(value, max_value));
+  }
+
+  static double command_to_output_voltage(double command_voltage_v)
+  {
+    return clamp(command_voltage_v + kVoltageOffsetV, kMinVoltageV, kMaxVoltageV);
   }
   static constexpr double kHeadAreaM2 =
     kPi * kCylinderDiameterM * kCylinderDiameterM / 4.0;
@@ -160,21 +180,33 @@ private:
       kTargetForceAmplitudeN * std::sin(2.0 * kPi * kTargetForceFrequencyHz * elapsed_s);
     const TargetPressures target_pressures = convert_force_to_target_pressures(target_force_n);
 
-    const double head_voltage_v =
+    const double head_command_voltage_v =
       head_pid_.update(target_pressures.head_kpa, measured_head_pressure_kpa_);
-    const double rod_voltage_v =
+    const double rod_command_voltage_v =
       rod_pid_.update(target_pressures.rod_kpa, measured_rod_pressure_kpa_);
+    const double head_output_voltage_v = command_to_output_voltage(head_command_voltage_v);
+    const double rod_output_voltage_v = command_to_output_voltage(rod_command_voltage_v);
 
     std_msgs::msg::Float32MultiArray out_msg;
-    out_msg.data.push_back(static_cast<float>(head_voltage_v));
-    out_msg.data.push_back(static_cast<float>(rod_voltage_v));
+    out_msg.data.assign(kOutputChannelCount, 0.0f);
+    out_msg.data[static_cast<size_t>(head_pressure_index_)] =
+      static_cast<float>(head_output_voltage_v);
+    out_msg.data[static_cast<size_t>(rod_pressure_index_)] =
+      static_cast<float>(rod_output_voltage_v);
     publisher_->publish(out_msg);
+
+    std_msgs::msg::Float32MultiArray debug_msg;
+    debug_msg.data.push_back(static_cast<float>(target_force_n));
+    debug_msg.data.push_back(static_cast<float>(target_pressures.head_kpa));
+    debug_msg.data.push_back(static_cast<float>(target_pressures.rod_kpa));
+    debug_publisher_->publish(debug_msg);
   }
 
   controller::Pid head_pid_;
   controller::Pid rod_pid_;
   std::string subscribe_topic_name_;
   std::string publish_topic_name_;
+  std::string debug_publish_topic_name_;
   int head_pressure_index_{0};
   int rod_pressure_index_{1};
   double measured_head_pressure_kpa_{0.0};
@@ -184,6 +216,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr debug_publisher_;
 };
 
 int main(int argc, char * argv[])
