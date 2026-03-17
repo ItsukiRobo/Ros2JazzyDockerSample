@@ -7,7 +7,7 @@ def generate_launch_description():
     }
     ao_params = {
         'update_rate': 1000.0,
-        'subscribe_topic': '/actuators/valve_voltage',
+        'subscribe_topic': '/controller/output_voltage',
     }
     pressure_sensor_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
@@ -27,12 +27,13 @@ def generate_launch_description():
     }
     cylinder_force_contoller_params = {
         'subscribe_topic_name': '/pressure',
-        'publish_topic_name': '/actuators/valve_voltage',
+        'publish_topic_name': '/controller/output_voltage',
+        'debug_publish_topic_name': '/controller/debug',
         'head_pressure_index': 0,
-        'rod_pressure_index': 2,
+        'rod_pressure_index': 1,
         'control_period_s': 0.001,
-        'kp': 0.02,
-        'ki': 0.0,
+        'kp': 0.04,
+        'ki': 0.01,
         'kd': 0.0,
     }
 

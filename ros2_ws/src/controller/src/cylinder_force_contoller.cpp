@@ -97,7 +97,7 @@ private:
   
   static constexpr double kMinVoltageV = 0.0;
   static constexpr double kMaxVoltageV = 10.0;
-  static constexpr double kTargetForceAmplitudeN = 1.0;
+  static constexpr double kTargetForceAmplitudeN = 10.0;
   static constexpr double kTargetForceFrequencyHz = 0.1;
   static constexpr size_t kOutputChannelCount = 8;
 
