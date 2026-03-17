@@ -64,15 +64,11 @@ public:
       subscribe_topic_name_, rclcpp::QoS(10),
       std::bind(&CylinderForceContollerNode::pressure_callback, this, std::placeholders::_1));
 
-    const auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::duration<double>(control_period_s));
     start_time_ = std::chrono::steady_clock::now();
-    timer_ = this->create_wall_timer(
-      period, std::bind(&CylinderForceContollerNode::control_callback, this));
 
     RCLCPP_INFO(
       this->get_logger(),
-      "cylinder_force_contoller started. subscribe='%s' publish='%s' debug_publish='%s' period=%.4f s",
+      "cylinder_force_contoller started. subscribe='%s' publish='%s' debug_publish='%s' pid_period=%.4f s",
       subscribe_topic_name_.c_str(), publish_topic_name_.c_str(),
       debug_publish_topic_name_.c_str(), control_period_s);
   }
@@ -162,18 +158,11 @@ private:
 
     measured_head_pressure_kpa_ = head_pressure_kpa;
     measured_rod_pressure_kpa_ = rod_pressure_kpa;
-    has_pressure_measurement_ = true;
+    control_callback();
   }
 
   void control_callback()
   {
-    if (!has_pressure_measurement_) {
-      RCLCPP_WARN_THROTTLE(
-        this->get_logger(), *this->get_clock(), 5000,
-        "waiting for pressure input on '%s'", subscribe_topic_name_.c_str());
-      return;
-    }
-
     const double elapsed_s =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time_).count();
     const double target_force_n =
@@ -211,9 +200,7 @@ private:
   int rod_pressure_index_{1};
   double measured_head_pressure_kpa_{0.0};
   double measured_rod_pressure_kpa_{0.0};
-  bool has_pressure_measurement_{false};
   std::chrono::steady_clock::time_point start_time_{};
-  rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr debug_publisher_;
