@@ -5,9 +5,11 @@
 #include "std_msgs/msg/float32_multi_array.hpp"
 
 #include <algorithm> 
+#include <csignal>
 #include <cstdint>
 #include <cstring>
 #include <fcntl.h>
+#include <cstdlib>
 #include <unistd.h>
 #include <vector>
 #include <cmath>
@@ -44,6 +46,32 @@ namespace
 static int fd = -1;
 static uint16_t analogData[16] = {0}; // 物理DACに送るコード値（0..65535）
 
+void SetNeutralOutputs()
+{
+    const uint16_t neutral_code = volt_to_code_pm10(V_NEUTRAL);
+    for (int i = 0; i < 8; ++i)
+        analogData[i] = neutral_code;
+}
+
+void WriteNeutralOutputs()
+{
+    if (fd == -1)
+        return;
+
+    SetNeutralOutputs();
+    const ssize_t need = 8 * sizeof(uint16_t);
+    (void)write(fd, reinterpret_cast<char *>(analogData), need);
+}
+
+void HandleTerminationSignal(int signum)
+{
+    WriteNeutralOutputs();
+    if (fd != -1)
+        close(fd);
+    fd = -1;
+    std::_Exit(128 + signum);
+}
+
 int BoardOpen()
 {
     std::cout << "AO Board Open\n";
@@ -54,10 +82,7 @@ int BoardOpen()
         return -1;
     }
     // 安全のため、全chを“中立5V”に初期化
-    const uint16_t neutral_code = volt_to_code_pm10(V_NEUTRAL);
-    for (int i = 0; i < 8; ++i)
-        analogData[i] = neutral_code;
-
+    SetNeutralOutputs();
     ssize_t need = 8 * sizeof(uint16_t);
     if (write(fd, reinterpret_cast<char *>(analogData), need) == -1)
     {
@@ -70,6 +95,7 @@ int BoardOpen()
 int BoardClose()
 {
     std::cout << "AO Board Close\n";
+    WriteNeutralOutputs();
     if (fd != -1)
         close(fd);
     fd = -1;
@@ -172,6 +198,8 @@ private:
 
 int main(int argc, char *argv[])
 {
+    std::signal(SIGINT, HandleTerminationSignal);
+    std::signal(SIGTERM, HandleTerminationSignal);
     rclcpp::init(argc, argv);
 
     if (BoardOpen() != 0)

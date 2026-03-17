@@ -49,7 +49,7 @@ add_executable(cnt3204mtlpe_test src/cnt3204mtlpe_test.cpp)
 ament_target_dependencies(cnt3204mtlpe_test rclcpp std_msgs)
 
 add_executable(pressure_sensor src/pressure_sensor.cpp)
-ament_target_dependencies(pressure_sensor rclcpp std_msgs)
+ament_target_dependencies(pressure_sensor rclcpp signal_utility std_msgs)
 
 add_executable(loadcell src/loadcell.cpp)
 ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
