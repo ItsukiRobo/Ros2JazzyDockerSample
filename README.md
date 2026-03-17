@@ -69,10 +69,11 @@ docker run --rm -it \
   -e HOST_GID=$(id -g) \
   --device /dev/AI \
   --device /dev/AO \
+  --device /dev/CNT \
   -v ~/sample_project/artifacts:/artifacts \
   sample_project:jazzy
 ```
-AI-1616L-LPE / AO-1608L-LPE を使う場合は、対応する `/dev/AI` と `/dev/AO` をコンテナへ渡す必要があります。渡していない場合、`peripheral` ノードはデバイス open に失敗して終了します。
+AI-1616L-LPE / AO-1608L-LPE / CNT-3204MT-LPE を使う場合は、対応する `/dev/AI`, `/dev/AO`, `/dev/CNT` をコンテナへ渡す必要があります。渡していない場合、`peripheral` ノードはデバイス open に失敗して終了します。
 
 ## 停止
 実行中のターミナルで Ctrl + C
@@ -179,33 +180,57 @@ sudo chown -R $USER:$USER ~/sample_project/artifacts
 まずは動作確認として demo_nodes_cpp の talker を起動できます（コンテナに ros-jazzy-demo-nodes-cpp が入っている必要があります）。
 
 ## トラブルシュート
-1) ros1変換が失敗する
+### `start_driver.sh` 実行時に `Invalid module format` が出る
 
-    /artifacts/<run_id>/convert_rosbags_stderr.log を確認してください。
-原因例：
+事象の例：
 
-
-- std 側が mcap で保存されていて変換ツールが扱いにくい
-→ rosbag2_std は -s sqlite3 推奨
-
-2) Ctrl+C 後に止まる/固まる
-
-    rosbag2 停止・フラッシュ待ちで止まる場合があります。
-    entrypoint 側で SIGINT→SIGTERM→SIGKILL の段階停止（タイムアウト付き）にすることで回避できます（現在の構成がそれ）。
-
-3) `Update error: AI-1616L-LPE` が大量に出る
-
-    典型的には AI ボードが開けていない状態で `/dev/AI` 読み取りを続けているケースです。
-    Docker 実行時に `--device /dev/AI` を渡しているか、ホスト側でデバイスノードが存在するかを確認してください。
-
-## よく使うコマンド集
-
-- 最新 run_id を表示：
+```text
+sudo bash ./board_drivers/start_driver.sh
+Enabling registers for IO boards...
+Loading board driver modules...
+insmod: ERROR: could not insert module ...: Invalid module format
 ```
-ls -1t ~/sample_project/artifacts | head -n 5
+
+この場合は、`.ko` が現在のホストカーネル向けにビルドされていない可能性が高いです。
+Ubuntu 更新後や、以前のカーネル向けに作ったドライバをそのまま使った場合に起きます。
+
+まず現在のカーネルと、ドライバの `vermagic` を確認します。
+
+```bash
+uname -r
+modinfo ~/sample_project/board_drivers/AI1616LLPE/AI1616L.ko | grep vermagic
+modinfo ~/sample_project/board_drivers/AO1608LLPE/AO1608L.ko | grep vermagic
+modinfo ~/sample_project/board_drivers/CNT3204MTLPE/CNT3204MT.ko | grep vermagic
 ```
-- 最新 run_id の中身を見る：
+
+`vermagic` と `uname -r` が一致しない場合は、ドライバの再 `make` が必要です。
+
+```bash
+cd ~/sample_project/board_drivers/AI1616LLPE
+make clean
+make
+
+cd ~/sample_project/board_drivers/AO1608LLPE
+make clean
+make
+
+cd ~/sample_project/board_drivers/CNT3204MTLPE
+make clean
+make
 ```
-RUN_ID=$(ls -1t ~/sample_project/artifacts | head -n 1)
-ls -R ~/sample_project/artifacts/${RUN_ID} | sed -n '1,120p'
+
+必要に応じて、先にカーネルヘッダを入れてください。
+
+```bash
+sudo apt update
+sudo apt install build-essential linux-headers-$(uname -r)
 ```
+
+再ビルド後にもう一度 `vermagic` を確認し、最後にロードし直します。
+
+```bash
+cd ~/sample_project
+sudo bash ./board_drivers/start_driver.sh
+```
+
+詳しい手順は [board_drivers/README.md](/home/kklab/sample_project/board_drivers/README.md) も参照してください。
