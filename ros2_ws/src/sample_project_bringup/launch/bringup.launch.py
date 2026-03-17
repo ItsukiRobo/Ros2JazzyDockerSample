@@ -14,6 +14,7 @@ def generate_launch_description():
         'sensor_idx': [0, 1, 2, 3, 5],
         'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa'],
         'publish_topic_name': '/pressure',
+        'cutoff_frequency_hz': 10.0,
     }
     loadcell_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
