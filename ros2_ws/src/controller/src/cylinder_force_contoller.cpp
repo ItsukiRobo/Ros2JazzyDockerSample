@@ -11,6 +11,11 @@
 #include <stdexcept>
 #include <string>
 
+namespace
+{
+constexpr double kDefaultControlPeriodS = 0.01;
+}  // namespace
+
 class CylinderForceContollerNode : public rclcpp::Node
 {
 public:
@@ -23,7 +28,6 @@ public:
       "debug_publish_topic_name", "/debug/cylinder_force_controller/targets");
     this->declare_parameter<int>("head_pressure_index", 0);
     this->declare_parameter<int>("rod_pressure_index", 1);
-    this->declare_parameter<double>("control_period_s", 0.01);
     this->declare_parameter<double>("kp", 0.02);
     this->declare_parameter<double>("ki", 0.0);
     this->declare_parameter<double>("kd", 0.0);
@@ -34,7 +38,6 @@ public:
     head_pressure_index_ = this->get_parameter("head_pressure_index").as_int();
     rod_pressure_index_ = this->get_parameter("rod_pressure_index").as_int();
 
-    control_period_s_ = this->get_parameter("control_period_s").as_double();
     const double kp = this->get_parameter("kp").as_double();
     const double ki = this->get_parameter("ki").as_double();
     const double kd = this->get_parameter("kd").as_double();
@@ -45,16 +48,13 @@ public:
     if (head_pressure_index_ >= 8 || rod_pressure_index_ >= 8) {
       throw std::runtime_error("pressure indices must be smaller than 8");
     }
-    if (control_period_s_ <= 0.0) {
-      throw std::runtime_error("control_period_s must be positive");
-    }
 
     head_pid_.set_gains(kp, ki, kd);
-    head_pid_.set_sampling_period(control_period_s_);
+    head_pid_.set_sampling_period(kDefaultControlPeriodS);
     head_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     rod_pid_.set_gains(kp, ki, kd);
-    rod_pid_.set_sampling_period(control_period_s_);
+    rod_pid_.set_sampling_period(kDefaultControlPeriodS);
     rod_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -71,7 +71,7 @@ public:
       this->get_logger(),
       "cylinder_force_controller started. subscribe='%s' publish='%s' debug_publish='%s' pid_period=%.4f s",
       subscribe_topic_name_.c_str(), publish_topic_name_.c_str(),
-      debug_publish_topic_name_.c_str(), control_period_s_);
+      debug_publish_topic_name_.c_str(), kDefaultControlPeriodS);
   }
 
 private:
