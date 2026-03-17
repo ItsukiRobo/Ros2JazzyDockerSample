@@ -16,6 +16,10 @@ def generate_launch_description():
         'publish_topic_name': '/pressure',
         'cutoff_frequency_hz': 10.0,
     }
+    cnt_params = {
+        'cnt_indexes': 4,
+        'mm_per_step': 0.01,
+    }
     loadcell_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
         'publish_topic_name': '/loadcell',
@@ -62,6 +66,14 @@ def generate_launch_description():
         output='screen',
         parameters=[pressure_sensor_params],
     )
+    # Counter Board  (Encoder)
+    cnt_node = Node(
+        package='peripheral',
+        executable='cnt3204mtlpe_test',
+        name='cnt3204mtlpe',
+        output='screen',
+        parameters=[cnt_params],
+    )
     # Load Cell
     loadcell_node = Node(
         package='peripheral',
@@ -83,6 +95,7 @@ def generate_launch_description():
         ai_node,
         ao_node,
         pressure_sensor_node,
+        cnt_node,
         loadcell_node,
         cylinder_force_controller_node,
     ])

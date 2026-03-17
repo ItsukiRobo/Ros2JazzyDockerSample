@@ -1,41 +1,26 @@
 #include "rclcpp/rclcpp.hpp"
 
-#include "std_msgs/msg/string.hpp"
-#include "std_msgs/msg/multi_array_layout.hpp"
-#include "std_msgs/msg/multi_array_dimension.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
+#include "std_msgs/msg/int64_multi_array.hpp"
+#include "std_msgs/msg/u_int32_multi_array.hpp"
 
 #include <iostream>
-#include <string>
-// #include <conio. h>
-
-// #include <stdio.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <memory.h>
 #include <stdint.h>
-
-#include <chrono>
-
-using std::placeholders::_1;
-
-using namespace std_msgs::msg;
-using namespace std;
+#include <unistd.h>
 
 char buf[128];
-char obuf[1];
 int fd = -1;
 uint32_t counterData[4];
 
-int flag = 0 ;
+bool initialized = false;
 uint32_t initial[4];
 
 int cnt_indexes;
+double mm_per_step;
 
-// rclcpp::Node::SharedPtr node = nullptr;
-
-
-int BoardOpen()    // CounterInput()
+int BoardOpen()
 {
     std::cout << "CNT Board Open" << "\n";
     fd = open("/dev/CNT", O_RDWR);
@@ -46,62 +31,29 @@ int BoardOpen()    // CounterInput()
     return 0;
 }
 
-int BoardClose()    // ~CounterInput()
+int BoardClose()
 {
     std::cout << "CNT Board Close" << "\n";
     close(fd);
     return 0;
 }
 
-int BoardUpdate()    // UpdateIn()   カウンタ値を更新する。（制御ループで毎回呼び出す。）
+int BoardUpdate()
 {
     char* bufptr = buf;
-
-    // char* testptr;
     
     if(read(fd, buf, sizeof(buf)) == -1)
     {
         std::cout << "Update error: CNT-3204MT-LPE" << "\n";
-        // RCLCPP_INFO(this->get_logger(), "Update error: CNT-3204MT-LPE");
-        // return -1;
     }
     
-    bufptr = buf;
-
     for(int i=0; i<4; i++) {
         counterData[i] = *(uint32_t*)bufptr;        
-
-        // if(i == 0) testptr = bufptr;
-
         bufptr += sizeof(uint32_t);
     }
 
-    // return testptr;
     return 0;
 }
-
-int GetCounterValue(int Channel)    // カウンタ値を読む
-{
-    if(Channel<0) return -1;
-    if(Channel>=4) return -1;
-    return(counterData[Channel]);
-}
-
-void CounterReset(int Channel)    // カウンタを0にリセットする。
-{
-    if(Channel<0) return;
-    if(Channel>=4) return;
-    obuf[0] = 0x01 << Channel;
-    write(fd, obuf, sizeof(obuf));
-}
-
-void CounterResetAll()    // 全チャンネルのカウンタを0にリセットする。
-{
-    obuf[0] = 0x0F;
-    write(fd, obuf, sizeof(obuf));
-}
-
-
 
 class CNTNode : public rclcpp::Node
 {
@@ -110,12 +62,16 @@ public:
   : Node("cnt3204mtlpe")
   {
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-      "/pressure", 10, std::bind(&CNTNode::topic_callback, this, _1));
+      "/pressure", 10, std::bind(&CNTNode::topic_callback, this, std::placeholders::_1));
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/pressure_and_length", 10);
+    debug_publisher_ = this->create_publisher<std_msgs::msg::UInt32MultiArray>("/cnt3204mtlpe/counter", 10);
+    debug_delta_publisher_ = this->create_publisher<std_msgs::msg::Int64MultiArray>("/cnt3204mtlpe/counter_delta", 10);
 
     this->declare_parameter<int>("~cnt_indexes", 4);
     this->get_parameter("~cnt_indexes", cnt_indexes);
+    this->declare_parameter<double>("mm_per_step", 670.0 / 134400.0);
+    this->get_parameter("mm_per_step", mm_per_step);
   }
 
 
@@ -123,57 +79,42 @@ private:
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) const
   {
     auto msg1 = std_msgs::msg::Float32MultiArray();
-    msg1.data.clear();
-
+    auto debug_msg = std_msgs::msg::UInt32MultiArray();
+    auto debug_delta_msg = std_msgs::msg::Int64MultiArray();
     msg1.data = msg->data;
 
-    // msg->data.clear();
-    // msg.data.clear();
     BoardUpdate();
 
-    // char* tes = BoardUpdate();
-
-    // // address check
-    // RCLCPP_INFO(node->get_logger(), "bufptr : '%x'", tes);
-    // RCLCPP_INFO(node->get_logger(), "&bufptr : '%f'", *(uint32_t*)tes);
-
-    // int stsdata = _inpd(tes + 0x0c);   // ステータス呼び出し
-//    char* stptr = tes + 0x0c;   // ステータス呼び出し
-
-    // RCLCPP_INFO(node->get_logger(), "status data : '%02x'", &stptr);
-
     for(int i = 0; i < cnt_indexes; i++)
-    // for(int i = 0; i < 4; i++)
-		{
-			uint32_t value = counterData[i];
+    {
+      uint32_t value = counterData[i];
+      debug_msg.data.push_back(value);
 
-      if (flag == 0){
+      if (!initialized) {
         initial[i] = value ;
-        if (i == cnt_indexes-1){
-          flag = 1 ;
+        if (i == cnt_indexes - 1) {
+          initialized = true;
         }
       }
 
-      double length = (value - initial[i] + 40000) / 134400.0 * 670.0 - 40000 / 134400.0 * 670.0 ;  // [mm]
-      //double length = (value - initial[i]) / 134400.0 * 670.0 ;  // [mm]
-      /*if (length > 700.0){
-        length = 0.0 ;
-      }*/
-			msg1.data.push_back(length);
-			// msg1.data.push_back(value);
-		}
+      uint32_t raw_delta = value - initial[i];
+      int32_t signed_delta = static_cast<int32_t>(raw_delta);
+      debug_delta_msg.data.push_back(static_cast<int64_t>(signed_delta));
 
-    // RCLCPP_INFO(this->get_logger(), "cnt_indexes = %d", cnt_indexes);
-
-    // RCLCPP_INFO(this->get_logger(), "Publishing: '%f'", msg1.data[0]);
-    // RCLCPP_INFO(node->get_logger(), "obuf : '%x'", fd);
-
-    // stsdata = inpd(address + 0x0c);   // ステータス読み出し
+      double length = static_cast<double>(signed_delta) * mm_per_step ;  // [mm]
+      msg1.data.push_back(length);
+    }
 
     publisher_->publish(msg1);
+
+    // Debug
+    // debug_publisher_->publish(debug_msg);
+    // debug_delta_publisher_->publish(debug_delta_msg);
   }
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
+  rclcpp::Publisher<std_msgs::msg::UInt32MultiArray>::SharedPtr debug_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Int64MultiArray>::SharedPtr debug_delta_publisher_;
 };
 
 
@@ -185,59 +126,11 @@ int main(int argc, char * argv[])
 
   rclcpp::spin(std::make_shared<CNTNode>());
 
-  // CounterResetAll() ;
-
   BoardClose();
 
   rclcpp::shutdown();
   return 0;
 }
-
-
-
-// int main(int argc, char **argv)
-// {
-//   rclcpp::init(argc, argv);
-//   auto node = rclcpp::Node::make_shared("cnt3204mtlpe");
-
-//   auto cnt3204mtlpe_pub = node->create_publisher<std_msgs::msg::Float32MultiArray>("cnt3204mtlpe/count", 10);
-//   rclcpp::Rate loop_rate(10);   // Hz
-
-//   BoardOpen();
-
-// //   CounterResetAll();
-
-//   std_msgs::msg::Float32MultiArray msg;
-  
-//   uint32_t value;
-
-//   while (rclcpp::ok())
-//   {
-//     msg.data.clear();
-//     BoardUpdate();
-
-//     // char* tes = BoardUpdate();
-
-//     // // address check
-//     // RCLCPP_INFO(node->get_logger(), "bufptr : '%x'", tes);
-
-//     // RCLCPP_INFO(node->get_logger(), "&bufptr : '%f'", *(uint32_t*)tes);
-
-//     // int stsdata = _inpd(tes + 0x0c);   // ステータス呼び出し
-// //    char* stptr = tes + 0x0c;   // ステータス呼び出し
-
-//     // RCLCPP_INFO(node->get_logger(), "status data : '%02x'", &stptr);
-
-//     for(int i = 0; i < 4; i++)
-// 		{
-// 			value = counterData[i];
-// 			// double value = (analogData[i]-65535.0/2.0)/65535.0*20.0;
-// 			msg.data.push_back(value);
-// 		}
-
-//     // RCLCPP_INFO(node->get_logger(), "Publishing: '%f'", msg.data[0]);
-
-//     // RCLCPP_INFO(node->get_logger(), "obuf : '%x'", fd);
 
 //     // stsdata = inpd(address + 0x0c);   // ステータス読み出し
 
@@ -250,4 +143,3 @@ int main(int argc, char * argv[])
 
 //   return 0;
 // }
-
