@@ -15,12 +15,12 @@ class CylinderForceContollerNode : public rclcpp::Node
 {
 public:
   CylinderForceContollerNode()
-  : Node("cylinder_force_contoller")
+  : Node("cylinder_force_controller")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure");
     this->declare_parameter<std::string>("publish_topic_name", "/controller/output_voltage");
     this->declare_parameter<std::string>(
-      "debug_publish_topic_name", "/debug/cylinder_force_contoller/targets");
+      "debug_publish_topic_name", "/debug/cylinder_force_controller/targets");
     this->declare_parameter<int>("head_pressure_index", 0);
     this->declare_parameter<int>("rod_pressure_index", 1);
     this->declare_parameter<double>("control_period_s", 0.01);
@@ -69,7 +69,7 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "cylinder_force_contoller started. subscribe='%s' publish='%s' debug_publish='%s' pid_period=%.4f s",
+      "cylinder_force_controller started. subscribe='%s' publish='%s' debug_publish='%s' pid_period=%.4f s",
       subscribe_topic_name_.c_str(), publish_topic_name_.c_str(),
       debug_publish_topic_name_.c_str(), control_period_s_);
   }
