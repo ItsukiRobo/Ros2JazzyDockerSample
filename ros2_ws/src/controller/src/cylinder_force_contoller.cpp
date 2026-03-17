@@ -186,7 +186,7 @@ private:
     const double rod_output_voltage_v = command_to_output_voltage(rod_command_voltage_v);
 
     std_msgs::msg::Float32MultiArray out_msg;
-    out_msg.data.assign(kOutputChannelCount, 0.0f);
+    out_msg.data.assign(kOutputChannelCount, 5.0f);
     out_msg.data[static_cast<size_t>(head_pressure_index_)] =
       static_cast<float>(head_output_voltage_v);
     out_msg.data[static_cast<size_t>(rod_pressure_index_)] =
