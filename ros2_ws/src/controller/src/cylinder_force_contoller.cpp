@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -33,7 +34,7 @@ public:
     head_pressure_index_ = this->get_parameter("head_pressure_index").as_int();
     rod_pressure_index_ = this->get_parameter("rod_pressure_index").as_int();
 
-    const double control_period_s = this->get_parameter("control_period_s").as_double();
+    control_period_s_ = this->get_parameter("control_period_s").as_double();
     const double kp = this->get_parameter("kp").as_double();
     const double ki = this->get_parameter("ki").as_double();
     const double kd = this->get_parameter("kd").as_double();
@@ -44,16 +45,16 @@ public:
     if (head_pressure_index_ >= 8 || rod_pressure_index_ >= 8) {
       throw std::runtime_error("pressure indices must be smaller than 8");
     }
-    if (control_period_s <= 0.0) {
+    if (control_period_s_ <= 0.0) {
       throw std::runtime_error("control_period_s must be positive");
     }
 
     head_pid_.set_gains(kp, ki, kd);
-    head_pid_.set_sampling_period(control_period_s);
+    head_pid_.set_sampling_period(control_period_s_);
     head_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     rod_pid_.set_gains(kp, ki, kd);
-    rod_pid_.set_sampling_period(control_period_s);
+    rod_pid_.set_sampling_period(control_period_s_);
     rod_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -70,7 +71,7 @@ public:
       this->get_logger(),
       "cylinder_force_contoller started. subscribe='%s' publish='%s' debug_publish='%s' pid_period=%.4f s",
       subscribe_topic_name_.c_str(), publish_topic_name_.c_str(),
-      debug_publish_topic_name_.c_str(), control_period_s);
+      debug_publish_topic_name_.c_str(), control_period_s_);
   }
 
 private:
@@ -136,6 +137,14 @@ private:
 
   void pressure_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
   {
+    const auto now = std::chrono::steady_clock::now();
+    if (last_pressure_time_.has_value()) {
+      const double dt_seconds = std::chrono::duration<double>(now - *last_pressure_time_).count();
+      head_pid_.set_sampling_period(dt_seconds);
+      rod_pid_.set_sampling_period(dt_seconds);
+    }
+    last_pressure_time_ = now;
+
     const size_t head_index = static_cast<size_t>(head_pressure_index_);
     const size_t rod_index = static_cast<size_t>(rod_pressure_index_);
 
@@ -196,11 +205,13 @@ private:
   std::string subscribe_topic_name_;
   std::string publish_topic_name_;
   std::string debug_publish_topic_name_;
+  double control_period_s_{0.01};
   int head_pressure_index_{0};
   int rod_pressure_index_{1};
   double measured_head_pressure_kpa_{0.0};
   double measured_rod_pressure_kpa_{0.0};
   std::chrono::steady_clock::time_point start_time_{};
+  std::optional<std::chrono::steady_clock::time_point> last_pressure_time_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr debug_publisher_;
