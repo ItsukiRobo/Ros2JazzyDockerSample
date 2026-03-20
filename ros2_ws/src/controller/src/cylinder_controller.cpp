@@ -1,6 +1,7 @@
 #include "controller/action/track_sine_force.hpp"
 #include "controller/action/track_sine_length.hpp"
 #include "controller/pid.hpp"
+#include "controller/srv/set_hold_target_force.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -74,6 +75,7 @@ public:
   using GoalHandleTrackSineForce = rclcpp_action::ServerGoalHandle<TrackSineForce>;
   using TrackSineLength = controller::action::TrackSineLength;
   using GoalHandleTrackSineLength = rclcpp_action::ServerGoalHandle<TrackSineLength>;
+  using SetHoldTargetForce = controller::srv::SetHoldTargetForce;
 
   CylinderForceControllerNode()
   : Node("cylinder_controller")
@@ -91,9 +93,9 @@ public:
     this->declare_parameter<int>("rod_pressure_index", 1);
     this->declare_parameter<int>("force_index", 6);
     this->declare_parameter<int>("length_index", 7);
-    this->declare_parameter<double>("kp", 0.02);
-    this->declare_parameter<double>("ki", 0.0);
-    this->declare_parameter<double>("kd", 0.0);
+    this->declare_parameter<double>("pressure_kp", 0.02);
+    this->declare_parameter<double>("pressure_ki", 0.0);
+    this->declare_parameter<double>("pressure_kd", 0.0);
     this->declare_parameter<double>("force_kp", 0.1);
     this->declare_parameter<double>("force_ki", 0.0);
     this->declare_parameter<double>("force_kd", 0.0);
@@ -101,6 +103,8 @@ public:
     this->declare_parameter<double>("length_kp", 0.1);
     this->declare_parameter<double>("length_ki", 0.0);
     this->declare_parameter<double>("length_kd", 0.0);
+    this->declare_parameter<double>("length_output_force_min_n", -20.0);
+    this->declare_parameter<double>("length_output_force_max_n", 0.0);
     this->declare_parameter<double>("base_pressure_kpa", 50.0);
     this->declare_parameter<double>("startup_target_force_n", 0.0);
     this->declare_parameter<double>("feasible_force_min_n", -200.0);
@@ -121,9 +125,9 @@ public:
     feasible_force_min_n_ = this->get_parameter("feasible_force_min_n").as_double();
     feasible_force_max_n_ = this->get_parameter("feasible_force_max_n").as_double();
 
-    const double kp = this->get_parameter("kp").as_double();
-    const double ki = this->get_parameter("ki").as_double();
-    const double kd = this->get_parameter("kd").as_double();
+    const double pressure_kp = this->get_parameter("pressure_kp").as_double();
+    const double pressure_ki = this->get_parameter("pressure_ki").as_double();
+    const double pressure_kd = this->get_parameter("pressure_kd").as_double();
     const double force_kp = this->get_parameter("force_kp").as_double();
     const double force_ki = this->get_parameter("force_ki").as_double();
     const double force_kd = this->get_parameter("force_kd").as_double();
@@ -131,14 +135,16 @@ public:
     const double length_kp = this->get_parameter("length_kp").as_double();
     const double length_ki = this->get_parameter("length_ki").as_double();
     const double length_kd = this->get_parameter("length_kd").as_double();
+    length_output_force_min_n_ = this->get_parameter("length_output_force_min_n").as_double();
+    length_output_force_max_n_ = this->get_parameter("length_output_force_max_n").as_double();
 
     validate_parameters(force_output_limit_n);
 
-    head_pid_.set_gains(kp, ki, kd);
+    head_pid_.set_gains(pressure_kp, pressure_ki, pressure_kd);
     head_pid_.set_sampling_period(control_period_s_);
     head_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
-    rod_pid_.set_gains(kp, ki, kd);
+    rod_pid_.set_gains(pressure_kp, pressure_ki, pressure_kd);
     rod_pid_.set_sampling_period(control_period_s_);
     rod_pid_.set_output_limits(kMinCommandVoltageV, kMaxCommandVoltageV);
 
@@ -148,7 +154,7 @@ public:
 
     length_pid_.set_gains(length_kp, length_ki, length_kd);
     length_pid_.set_sampling_period(control_period_s_);
-    length_pid_.set_output_limits(feasible_force_min_n_, feasible_force_max_n_);
+    length_pid_.set_output_limits(length_output_force_min_n_, length_output_force_max_n_);
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       publish_topic_name_, rclcpp::QoS(10));
@@ -173,6 +179,12 @@ public:
         std::placeholders::_2),
       std::bind(&CylinderForceControllerNode::handle_length_cancel, this, std::placeholders::_1),
       std::bind(&CylinderForceControllerNode::handle_length_accepted, this, std::placeholders::_1));
+
+    set_hold_target_force_service_ = this->create_service<SetHoldTargetForce>(
+      "/cylinder_controller/set_hold_target_force",
+      std::bind(
+        &CylinderForceControllerNode::handle_set_hold_target_force, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     RCLCPP_INFO(
       this->get_logger(),
@@ -224,6 +236,23 @@ private:
     }
     if (feasible_force_max_n_ > 0.0) {
       throw std::runtime_error("feasible_force_max_n must be <= 0.0 for this mechanism");
+    }
+    if (
+      !std::isfinite(length_output_force_min_n_) ||
+      !std::isfinite(length_output_force_max_n_))
+    {
+      throw std::runtime_error("length_output_force_min_n and length_output_force_max_n must be finite");
+    }
+    if (length_output_force_min_n_ > length_output_force_max_n_) {
+      throw std::runtime_error(
+              "length_output_force_min_n must be less than or equal to length_output_force_max_n");
+    }
+    if (
+      length_output_force_min_n_ < feasible_force_min_n_ ||
+      length_output_force_max_n_ > feasible_force_max_n_)
+    {
+      throw std::runtime_error(
+              "length output force limits must stay within feasible_force_min_n and feasible_force_max_n");
     }
     hold_target_force_n_ = clamp(hold_target_force_n_, feasible_force_min_n_, feasible_force_max_n_);
   }
@@ -505,6 +534,32 @@ private:
     const double min_force_n = offset_n - amplitude_n;
     const double max_force_n = offset_n + amplitude_n;
     return min_force_n >= feasible_force_min_n_ && max_force_n <= feasible_force_max_n_;
+  }
+
+  void handle_set_hold_target_force(
+    const std::shared_ptr<SetHoldTargetForce::Request> request,
+    std::shared_ptr<SetHoldTargetForce::Response> response)
+  {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (!std::isfinite(request->target_force_n)) {
+      response->success = false;
+      response->message = "target_force_n must be finite";
+      response->applied_target_force_n = hold_target_force_n_;
+      return;
+    }
+
+    hold_target_force_n_ = clamp(
+      request->target_force_n,
+      feasible_force_min_n_, feasible_force_max_n_);
+    this->set_parameter(rclcpp::Parameter("startup_target_force_n", hold_target_force_n_));
+
+    response->success = true;
+    response->applied_target_force_n = hold_target_force_n_;
+    if (hold_target_force_n_ == request->target_force_n) {
+      response->message = "Updated hold target force";
+    } else {
+      response->message = "Updated hold target force after clamping to feasible range";
+    }
   }
 
   rclcpp_action::GoalResponse handle_force_goal(
@@ -835,6 +890,8 @@ private:
   double hold_target_force_n_{0.0};
   double feasible_force_min_n_{-200.0};
   double feasible_force_max_n_{0.0};
+  double length_output_force_min_n_{-20.0};
+  double length_output_force_max_n_{0.0};
   double measured_head_pressure_kpa_{0.0};
   double measured_rod_pressure_kpa_{0.0};
   double measured_force_n_{0.0};
@@ -855,6 +912,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr debug_publisher_;
   rclcpp_action::Server<TrackSineForce>::SharedPtr force_action_server_;
   rclcpp_action::Server<TrackSineLength>::SharedPtr length_action_server_;
+  rclcpp::Service<SetHoldTargetForce>::SharedPtr set_hold_target_force_service_;
 };
 
 int main(int argc, char * argv[])
