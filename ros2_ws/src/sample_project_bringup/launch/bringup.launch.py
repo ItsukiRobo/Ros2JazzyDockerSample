@@ -18,7 +18,8 @@ def generate_launch_description():
     }
     loadcell_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
-        'publish_topic_name': '/loadcell',
+        'publish_topic_name': '/loadcell/debug',
+        'publish_raw_difference': True,
         'signal_plus_idx': [0],
         'signal_minus_idx': [1],
         'cutoff_frequency_hz': [0.0],
