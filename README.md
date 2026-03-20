@@ -179,6 +179,48 @@ sudo chown -R $USER:$USER ~/sample_project/artifacts
 
 まずは動作確認として demo_nodes_cpp の talker を起動できます（コンテナに ros-jazzy-demo-nodes-cpp が入っている必要があります）。
 
+## cylinder_force_controller の action
+
+`cylinder_force_controller` は起動直後、`startup_target_force_n` を目標に `HOLD` モードで制御します。
+その後、action `/cylinder_force_controller/track_sine_force` に goal を送ると `SINE_TRACKING` モードへ切り替わり、loadcell の force が目標 sin 波に追従するように制御します。
+goal の終了または cancel 後は `HOLD` モードへ戻ります。
+
+### action の型
+`controller/action/TrackSineForce`
+
+Goal:
+- `amplitude_n`
+- `offset_n`
+- `frequency_hz`
+- `duration_s`
+- `phase_rad`
+
+### 実行例
+コンテナ内または ROS 2 環境を source 済みの端末で実行します。
+
+```bash
+ros2 action send_goal /cylinder_force_controller/track_sine_force controller/action/TrackSineForce "{amplitude_n: 50.0, offset_n: 0.0, frequency_hz: 0.5, duration_s: 10.0, phase_rad: 0.0}"
+```
+
+例の意味:
+- 振幅 50 N
+- オフセット 0 N
+- 周波数 0.5 Hz
+- 10 秒間
+- 初期位相 0 rad
+
+### feedback / result
+feedback では以下を返します。
+- `elapsed_time_s`
+- `target_force_n`
+- `measured_force_n`
+
+result では以下を返します。
+- `success`
+- `message`
+
+別端末から `ros2 action send_goal` を再度送ると、新しい goal が優先され、前の goal は中断されます。
+
 ## トラブルシュート
 ### `start_driver.sh` 実行時に `Invalid module format` が出る
 
