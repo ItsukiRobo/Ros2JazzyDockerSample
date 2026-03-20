@@ -182,6 +182,7 @@ sudo chown -R $USER:$USER ~/sample_project/artifacts
 ## cylinder_controller の action
 
 `cylinder_controller` は起動直後、`startup_target_force_n` を目標に `HOLD` モードで制御します。
+`HOLD` は position 制御ではなく force 制御で、現在位置を固定するのではなく指定した force を維持しようとします。
 その後、以下の 2 つの action で目標波形を与えられます。
 goal の終了または cancel 後は `HOLD` モードへ戻ります。
 
@@ -209,6 +210,11 @@ ros2 action send_goal /cylinder_controller/track_sine_force controller/action/Tr
 - 10 秒間
 - 初期位相 0 rad
 
+開始時の挙動:
+- action 開始時の実測 force に現在の目標波形ができるだけ滑らかにつながるよう、内部で位相を自動調整します。
+- `phase_rad` は希望する波形形状を決める基準値として使われ、開始時に一致する候補位相のうち最も近いものが選ばれます。
+- 開始時の実測 force が指定波形の到達可能範囲外にある場合は、最も近い接続点へ寄せて開始します。
+
 feedback:
 - `elapsed_time_s`
 - `target_force_n`
@@ -221,6 +227,7 @@ result:
 注意:
 - この機構では正の force は実現できない前提です。
 - `offset_n + amplitude_n` が 0 を超えるような goal は reject されます。
+- force 計測がまだ受信されていない状態では goal は abort されます。
 
 ### 2. 長さの sin 波追従
 action 型:
@@ -236,15 +243,20 @@ goal:
 実行例:
 
 ```bash
-ros2 action send_goal /cylinder_controller/track_sine_length controller/action/TrackSineLength "{amplitude_mm: 10.0, offset_mm: 50.0, frequency_hz: 0.5, duration_s: 10.0, phase_rad: 0.0}"
+ros2 action send_goal /cylinder_controller/track_sine_length controller/action/TrackSineLength "{amplitude_mm: 10.0, offset_mm: 0.0, frequency_hz: 0.5, duration_s: 10.0, phase_rad: 0.0}"
 ```
 
 例の意味:
 - 振幅 10 mm
-- オフセット 50 mm
+- オフセット 0 mm
 - 周波数 0.5 Hz
 - 10 秒間
 - 初期位相 0 rad
+
+開始時の挙動:
+- action 開始時の実測 length を 0 mm の基準として扱います。
+- `offset_mm` はその基準に対する相対オフセットです。
+- たとえば `offset_mm: 0.0` なら、開始時 length を中心にした sin 波を追従します。
 
 feedback:
 - `elapsed_time_s`
@@ -254,6 +266,9 @@ feedback:
 result:
 - `success`
 - `message`
+
+注意:
+- length 計測がまだ受信されていない状態では goal は abort されます。
 
 ### 補足
 - コンテナ内または ROS 2 環境を source 済みの端末で実行します。
