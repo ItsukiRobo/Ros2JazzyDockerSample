@@ -10,6 +10,16 @@
 #include <string>
 #include <vector>
 
+/**
+ * 0kgf, 0.0V
+ * 4.072kgf, 0.519V
+ * 8.072kgf, 1.021V
+ * 12.072kgf, 1.524V
+ * 16.072kgf, 2.028V
+ * y = ax
+ * a = 7.918593157 kgf/V
+ */
+
 class LoadcellNode : public rclcpp::Node
 {
 public:
@@ -18,7 +28,7 @@ public:
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "ai1616llpe/voltage");
     this->declare_parameter<std::string>("publish_topic_name", "/loadcell");
-    this->declare_parameter<bool>("publish_raw_difference", false);
+    this->declare_parameter<bool>("publish_raw_difference", true);
     this->declare_parameter<std::vector<int64_t>>("signal_plus_idx", {0});
     this->declare_parameter<std::vector<int64_t>>("signal_minus_idx", {1});
     this->declare_parameter<std::vector<double>>("cutoff_frequency_hz", {0.0});
@@ -102,8 +112,7 @@ private:
   double convert_voltage_to_load(double differential_voltage, size_t loadcell_index) const
   {
     return
-      (differential_voltage - zero_balance_voltage_v_[loadcell_index]) *
-      rated_load_n_[loadcell_index] / rated_output_voltage_v_[loadcell_index];
+      (differential_voltage - zero_balance_voltage_v_[loadcell_index]) * 7.918593157;
   }
 
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
@@ -131,7 +140,7 @@ private:
         continue;
       }
 
-      const double differential_voltage = msg->data[plus_index] - msg->data[minus_index];
+      const double differential_voltage =  msg->data[minus_index] - msg->data[plus_index];
       if (publish_raw_difference_) {
         out_msg.data.push_back(static_cast<float>(differential_voltage));
         continue;
