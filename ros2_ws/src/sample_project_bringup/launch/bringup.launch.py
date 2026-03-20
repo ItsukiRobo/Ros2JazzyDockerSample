@@ -26,13 +26,15 @@ def generate_launch_description():
         'publish_topic_name': '/pressure_force_and_length',
     }
     cylinder_force_controller_params = {
-        'subscribe_topic_name': '/pressure_and_force',
+        'subscribe_topic_name': '/pressure_force_and_length',
         'publish_topic_name': '/controller/output_voltage',
         'debug_publish_topic_name': '/controller/debug',
         'action_name': '/cylinder_force_controller/track_sine_force',
+        'length_action_name': '/cylinder_force_controller/track_sine_length',
         'head_pressure_index': 0,
         'rod_pressure_index': 1,
         'force_index': 6,
+        'length_index': 7,
         'control_period_s': 0.001,
         'kp': 0.04,
         'ki': 0.01,
@@ -41,8 +43,13 @@ def generate_launch_description():
         'force_ki': 0.0,
         'force_kd': 0.0,
         'force_output_limit_n': 200.0,
+        'length_kp': 0.1,
+        'length_ki': 0.0,
+        'length_kd': 0.0,
         'base_pressure_kpa': 50.0,
         'startup_target_force_n': 0.0,
+        'feasible_force_min_n': -200.0,
+        'feasible_force_max_n': 0.0,
     }
 
     # Analog Input
