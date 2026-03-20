@@ -380,6 +380,7 @@ private:
     measured_rod_pressure_kpa_ = rod_pressure_kpa;
     measured_force_n_ = measured_force_n;
     measured_length_mm_ = measured_length_mm;
+    has_length_measurement_ = true;
 
     const double desired_force_n = current_desired_force_n(now);
     const double force_correction_n = force_pid_.update(desired_force_n, measured_force_n_);
@@ -601,16 +602,26 @@ private:
   {
     std::shared_ptr<GoalHandleTrackSineForce> previous_force_goal;
     std::shared_ptr<GoalHandleTrackSineLength> previous_length_goal;
+    double start_length_mm = 0.0;
     {
       std::lock_guard<std::mutex> lock(state_mutex_);
+      if (!has_length_measurement_) {
+        auto result = std::make_shared<TrackSineLength::Result>();
+        result->success = false;
+        result->message = "No length measurement received yet";
+        goal_handle->abort(result);
+        return;
+      }
+
       previous_force_goal = active_force_goal_;
       previous_length_goal = active_length_goal_;
       const auto goal = goal_handle->get_goal();
+      start_length_mm = measured_length_mm_;
       active_length_goal_ = goal_handle;
       active_force_goal_.reset();
       active_length_sine_ = SineTrajectory{
         goal->amplitude_mm,
-        goal->offset_mm,
+        start_length_mm + goal->offset_mm,
         goal->frequency_hz,
         goal->duration_s,
         goal->phase_rad,
@@ -715,6 +726,7 @@ private:
   double measured_rod_pressure_kpa_{0.0};
   double measured_force_n_{0.0};
   double measured_length_mm_{0.0};
+  bool has_length_measurement_{false};
   double desired_force_n_{0.0};
   double target_length_mm_{0.0};
   ControlMode control_mode_{ControlMode::kHold};
