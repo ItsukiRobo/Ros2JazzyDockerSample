@@ -29,16 +29,16 @@ target_include_directories(controller_pid PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-add_executable(cylinder_force_controller
-  src/cylinder_force_controller.cpp
+add_executable(cylinder_controller
+  src/cylinder_controller.cpp
 )
 
-target_link_libraries(cylinder_force_controller
+target_link_libraries(cylinder_controller
   controller_pid
   ${cpp_typesupport_target}
 )
 
-ament_target_dependencies(cylinder_force_controller
+ament_target_dependencies(cylinder_controller
   rclcpp
   rclcpp_action
   std_msgs
@@ -58,7 +58,7 @@ install(
 )
 
 install(
-  TARGETS cylinder_force_controller
+  TARGETS cylinder_controller
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

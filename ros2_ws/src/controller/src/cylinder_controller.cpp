@@ -76,16 +76,16 @@ public:
   using GoalHandleTrackSineLength = rclcpp_action::ServerGoalHandle<TrackSineLength>;
 
   CylinderForceControllerNode()
-  : Node("cylinder_force_controller")
+  : Node("cylinder_controller")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure_force_and_length");
     this->declare_parameter<std::string>("publish_topic_name", "/controller/output_voltage");
     this->declare_parameter<std::string>(
-      "debug_publish_topic_name", "/debug/cylinder_force_controller/targets");
+      "debug_publish_topic_name", "/debug/cylinder_controller/targets");
     this->declare_parameter<std::string>(
-      "action_name", "/cylinder_force_controller/track_sine_force");
+      "action_name", "/cylinder_controller/track_sine_force");
     this->declare_parameter<std::string>(
-      "length_action_name", "/cylinder_force_controller/track_sine_length");
+      "length_action_name", "/cylinder_controller/track_sine_length");
     this->declare_parameter<double>("control_period_s", kDefaultControlPeriodS);
     this->declare_parameter<int>("head_pressure_index", 0);
     this->declare_parameter<int>("rod_pressure_index", 1);
@@ -176,7 +176,7 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "cylinder_force_controller started. subscribe='%s' force_action='%s' length_action='%s'",
+      "cylinder_controller started. subscribe='%s' force_action='%s' length_action='%s'",
       subscribe_topic_name_.c_str(), force_action_name_.c_str(), length_action_name_.c_str());
   }
 

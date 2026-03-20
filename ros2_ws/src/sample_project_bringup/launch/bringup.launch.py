@@ -25,12 +25,12 @@ def generate_launch_description():
         'subscribe_topic_name': '/pressure_and_force',
         'publish_topic_name': '/pressure_force_and_length',
     }
-    cylinder_force_controller_params = {
+    cylinder_controller_params = {
         'subscribe_topic_name': '/pressure_force_and_length',
         'publish_topic_name': '/controller/output_voltage',
         'debug_publish_topic_name': '/controller/debug',
-        'action_name': '/cylinder_force_controller/track_sine_force',
-        'length_action_name': '/cylinder_force_controller/track_sine_length',
+        'action_name': '/cylinder_controller/track_sine_force',
+        'length_action_name': '/cylinder_controller/track_sine_length',
         'head_pressure_index': 0,
         'rod_pressure_index': 1,
         'force_index': 6,
@@ -85,12 +85,12 @@ def generate_launch_description():
         parameters=[cnt_params],
     )
     # Cylinder Force Controller
-    cylinder_force_controller_node = Node(
+    cylinder_controller_node = Node(
         package='controller',
-        executable='cylinder_force_controller',
-        name='cylinder_force_controller',
+        executable='cylinder_controller',
+        name='cylinder_controller',
         output='screen',
-        parameters=[cylinder_force_controller_params],
+        parameters=[cylinder_controller_params],
     )
 
     return LaunchDescription([
@@ -98,5 +98,5 @@ def generate_launch_description():
         ao_node,
         pressure_and_force_node,
         cnt_node,
-        cylinder_force_controller_node,
+        cylinder_controller_node,
     ])
