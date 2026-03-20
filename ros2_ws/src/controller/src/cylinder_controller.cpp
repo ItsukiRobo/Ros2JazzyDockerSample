@@ -195,6 +195,7 @@ private:
     double duration_s;
     double phase_rad;
     std::chrono::steady_clock::time_point start_time;
+    bool initialized{false};
   };
 
   void validate_parameters(double force_output_limit_n)
@@ -313,18 +314,73 @@ private:
     return choose_closest_phase(principal_phase, secondary_phase, requested_phase_rad);
   }
 
+  void initialize_active_force_sine_if_needed(const std::chrono::steady_clock::time_point & now)
+  {
+    if (
+      control_mode_ != ControlMode::kForceSineTracking || !active_force_sine_.has_value() ||
+      active_force_sine_->initialized || !active_force_goal_)
+    {
+      return;
+    }
+
+    const auto goal = active_force_goal_->get_goal();
+    active_force_sine_->phase_rad = compute_aligned_force_phase(
+      goal->amplitude_n, goal->offset_n, measured_force_n_, goal->phase_rad);
+    active_force_sine_->offset = goal->offset_n;
+    active_force_sine_->start_time = now;
+    active_force_sine_->initialized = true;
+
+    if (goal->amplitude_n > 0.0) {
+      const double normalized_force = (measured_force_n_ - goal->offset_n) / goal->amplitude_n;
+      if (normalized_force < -1.0 || normalized_force > 1.0) {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Force goal start %.3f N is outside waveform range [%.3f, %.3f] N; phase aligned to nearest reachable point",
+          measured_force_n_, goal->offset_n - goal->amplitude_n, goal->offset_n + goal->amplitude_n);
+      }
+    }
+  }
+
+  void initialize_active_length_sine_if_needed(const std::chrono::steady_clock::time_point & now)
+  {
+    if (
+      control_mode_ != ControlMode::kLengthSineTracking || !active_length_sine_.has_value() ||
+      active_length_sine_->initialized || !active_length_goal_)
+    {
+      return;
+    }
+
+    const auto goal = active_length_goal_->get_goal();
+    const double absolute_offset_mm = measured_length_mm_ + goal->offset_mm;
+    active_length_sine_->phase_rad = compute_aligned_force_phase(
+      goal->amplitude_mm, absolute_offset_mm, measured_length_mm_, goal->phase_rad);
+    active_length_sine_->offset = absolute_offset_mm;
+    active_length_sine_->start_time = now;
+    active_length_sine_->initialized = true;
+
+    if (goal->amplitude_mm > 0.0) {
+      const double normalized_length = -goal->offset_mm / goal->amplitude_mm;
+      if (normalized_length < -1.0 || normalized_length > 1.0) {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Length goal start offset %.3f mm is outside waveform range [-%.3f, %.3f] mm; phase aligned to nearest reachable point",
+          goal->offset_mm, goal->amplitude_mm, goal->amplitude_mm);
+      }
+    }
+  }
+
   double current_desired_force_n(const std::chrono::steady_clock::time_point & now)
   {
     switch (control_mode_) {
       case ControlMode::kForceSineTracking:
-        if (active_force_sine_.has_value()) {
+        if (active_force_sine_.has_value() && active_force_sine_->initialized) {
           return clamp(
             compute_sine_target(*active_force_sine_, now),
             feasible_force_min_n_, feasible_force_max_n_);
         }
         break;
       case ControlMode::kLengthSineTracking:
-        if (active_length_sine_.has_value()) {
+        if (active_length_sine_.has_value() && active_length_sine_->initialized) {
           target_length_mm_ = compute_sine_target(*active_length_sine_, now);
           return clamp(
             length_pid_.update(target_length_mm_, measured_length_mm_),
@@ -412,6 +468,8 @@ private:
     has_force_measurement_ = true;
     measured_length_mm_ = measured_length_mm;
     has_length_measurement_ = true;
+    initialize_active_force_sine_if_needed(now);
+    initialize_active_length_sine_if_needed(now);
 
     const double desired_force_n = current_desired_force_n(now);
     const double force_correction_n = force_pid_.update(desired_force_n, measured_force_n_);
@@ -496,7 +554,6 @@ private:
   {
     std::shared_ptr<GoalHandleTrackSineForce> previous_force_goal;
     std::shared_ptr<GoalHandleTrackSineLength> previous_length_goal;
-    double aligned_phase_rad = 0.0;
     {
       std::lock_guard<std::mutex> lock(state_mutex_);
       if (!has_force_measurement_) {
@@ -510,18 +567,6 @@ private:
       previous_force_goal = active_force_goal_;
       previous_length_goal = active_length_goal_;
       const auto goal = goal_handle->get_goal();
-      aligned_phase_rad = compute_aligned_force_phase(
-        goal->amplitude_n, goal->offset_n, measured_force_n_, goal->phase_rad);
-      if (goal->amplitude_n > 0.0) {
-        const double normalized_force =
-          (measured_force_n_ - goal->offset_n) / goal->amplitude_n;
-        if (normalized_force < -1.0 || normalized_force > 1.0) {
-          RCLCPP_WARN(
-            this->get_logger(),
-            "Force goal start %.3f N is outside waveform range [%.3f, %.3f] N; phase aligned to nearest reachable point",
-            measured_force_n_, goal->offset_n - goal->amplitude_n, goal->offset_n + goal->amplitude_n);
-        }
-      }
       active_force_goal_ = goal_handle;
       active_length_goal_.reset();
       active_force_sine_ = SineTrajectory{
@@ -529,8 +574,9 @@ private:
         goal->offset_n,
         goal->frequency_hz,
         goal->duration_s,
-        aligned_phase_rad,
-        std::chrono::steady_clock::now()};
+        goal->phase_rad,
+        std::chrono::steady_clock::time_point{},
+        false};
       active_length_sine_.reset();
       control_mode_ = ControlMode::kForceSineTracking;
       reset_all_pids();
@@ -565,12 +611,17 @@ private:
           return;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        feedback->elapsed_time_s =
-          std::chrono::duration<double>(now - active_force_sine_->start_time).count();
-        feedback->target_force_n = clamp(
-          compute_sine_target(*active_force_sine_, now),
-          feasible_force_min_n_, feasible_force_max_n_);
+        if (active_force_sine_->initialized) {
+          const auto now = std::chrono::steady_clock::now();
+          feedback->elapsed_time_s =
+            std::chrono::duration<double>(now - active_force_sine_->start_time).count();
+          feedback->target_force_n = clamp(
+            compute_sine_target(*active_force_sine_, now),
+            feasible_force_min_n_, feasible_force_max_n_);
+        } else {
+          feedback->elapsed_time_s = 0.0;
+          feedback->target_force_n = measured_force_n_;
+        }
         feedback->measured_force_n = measured_force_n_;
 
         if (goal_handle->is_canceling()) {
@@ -580,7 +631,10 @@ private:
           reset_all_pids();
           last_measurement_time_.reset();
           should_cancel = true;
-        } else if (feedback->elapsed_time_s >= active_force_sine_->duration_s) {
+        } else if (
+          active_force_sine_->initialized &&
+          feedback->elapsed_time_s >= active_force_sine_->duration_s)
+        {
           active_force_goal_.reset();
           active_force_sine_.reset();
           control_mode_ = ControlMode::kHold;
@@ -654,7 +708,6 @@ private:
   {
     std::shared_ptr<GoalHandleTrackSineForce> previous_force_goal;
     std::shared_ptr<GoalHandleTrackSineLength> previous_length_goal;
-    double start_length_mm = 0.0;
     {
       std::lock_guard<std::mutex> lock(state_mutex_);
       if (!has_length_measurement_) {
@@ -668,16 +721,16 @@ private:
       previous_force_goal = active_force_goal_;
       previous_length_goal = active_length_goal_;
       const auto goal = goal_handle->get_goal();
-      start_length_mm = measured_length_mm_;
       active_length_goal_ = goal_handle;
       active_force_goal_.reset();
       active_length_sine_ = SineTrajectory{
         goal->amplitude_mm,
-        start_length_mm + goal->offset_mm,
+        goal->offset_mm,
         goal->frequency_hz,
         goal->duration_s,
         goal->phase_rad,
-        std::chrono::steady_clock::now()};
+        std::chrono::steady_clock::time_point{},
+        false};
       active_force_sine_.reset();
       control_mode_ = ControlMode::kLengthSineTracking;
       reset_all_pids();
@@ -712,10 +765,15 @@ private:
           return;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        feedback->elapsed_time_s =
-          std::chrono::duration<double>(now - active_length_sine_->start_time).count();
-        feedback->target_length_mm = compute_sine_target(*active_length_sine_, now);
+        if (active_length_sine_->initialized) {
+          const auto now = std::chrono::steady_clock::now();
+          feedback->elapsed_time_s =
+            std::chrono::duration<double>(now - active_length_sine_->start_time).count();
+          feedback->target_length_mm = compute_sine_target(*active_length_sine_, now);
+        } else {
+          feedback->elapsed_time_s = 0.0;
+          feedback->target_length_mm = measured_length_mm_;
+        }
         feedback->measured_length_mm = measured_length_mm_;
 
         if (goal_handle->is_canceling()) {
@@ -725,7 +783,10 @@ private:
           reset_all_pids();
           last_measurement_time_.reset();
           should_cancel = true;
-        } else if (feedback->elapsed_time_s >= active_length_sine_->duration_s) {
+        } else if (
+          active_length_sine_->initialized &&
+          feedback->elapsed_time_s >= active_length_sine_->duration_s)
+        {
           active_length_goal_.reset();
           active_length_sine_.reset();
           control_mode_ = ControlMode::kHold;
