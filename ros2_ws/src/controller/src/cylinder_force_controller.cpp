@@ -94,8 +94,8 @@ private:
   
   static constexpr double kMinVoltageV = 0.0;
   static constexpr double kMaxVoltageV = 10.0;
-  static constexpr double kTargetForceAmplitudeN = 10.0;
-  static constexpr double kTargetForceFrequencyHz = 0.1;
+  static constexpr double kTargetForceAmplitudeN = 50.0;
+  static constexpr double kTargetForceFrequencyHz = 0.5;
   static constexpr size_t kOutputChannelCount = 8;
 
   static double clamp(double value, double min_value, double max_value)
@@ -175,7 +175,7 @@ private:
     const double elapsed_s =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time_).count();
     const double target_force_n =
-      kTargetForceAmplitudeN * std::sin(2.0 * kPi * kTargetForceFrequencyHz * elapsed_s);
+      - kTargetForceAmplitudeN * std::sin(2.0 * kPi * kTargetForceFrequencyHz * elapsed_s) - kTargetForceAmplitudeN;
     const TargetPressures target_pressures = convert_force_to_target_pressures(target_force_n);
 
     const double head_command_voltage_v =

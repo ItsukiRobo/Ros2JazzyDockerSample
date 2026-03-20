@@ -11,8 +11,8 @@ def generate_launch_description():
     }
     pressure_sensor_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
-        'sensor_idx': [0, 1, 2, 3, 5],
-        'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa'],
+        'sensor_idx': [0, 1, 2, 3, 4, 5],
+        'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa', '101kPa'],
         'publish_topic_name': '/pressure',
         'cutoff_frequency_hz': 10.0,
     }
@@ -22,14 +22,11 @@ def generate_launch_description():
     }
     loadcell_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
-        'publish_topic_name': '/loadcell',
+        'publish_topic_name': '/loadcell', # [N]
         'publish_raw_difference': False,
         'signal_plus_idx': [6],
         'signal_minus_idx': [7],
         'cutoff_frequency_hz': [10.0],
-        'rated_load_n': [1.0],
-        'rated_output_voltage_v': [1.0],
-        'zero_balance_voltage_v': [0.0],
     }
     cylinder_force_controller_params = {
         'subscribe_topic_name': '/pressure',

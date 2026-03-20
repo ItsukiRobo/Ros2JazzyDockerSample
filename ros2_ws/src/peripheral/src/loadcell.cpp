@@ -112,7 +112,7 @@ private:
   double convert_voltage_to_load(double differential_voltage, size_t loadcell_index) const
   {
     return
-      (differential_voltage - zero_balance_voltage_v_[loadcell_index]) * 7.918593157;
+      (differential_voltage) * 7.918593157 * 9.807;
   }
 
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
