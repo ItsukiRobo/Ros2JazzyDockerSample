@@ -186,6 +186,29 @@ sudo chown -R $USER:$USER ~/sample_project/artifacts
 その後、以下の 2 つの action で目標波形を与えられます。
 goal の終了または cancel 後は `HOLD` モードへ戻ります。
 
+### HOLD 目標 force の変更 service
+service 型:
+`controller/srv/SetHoldTargetForce`
+
+用途:
+- `HOLD` モード中の目標 force を起動中に変更します。
+- `startup_target_force_n` は初期値として使われますが、この service で実行中に更新できます。
+
+実行例:
+
+```bash
+ros2 service call /cylinder_controller/set_hold_target_force controller/srv/SetHoldTargetForce "{target_force_n: -20.0}"
+```
+
+返り値:
+- `success`
+- `message`
+- `applied_target_force_n`
+
+注意:
+- 指定値が実現可能範囲を外れる場合は、内部で clamp された値が `applied_target_force_n` に返ります。
+- action 実行中にも service は呼べますが、実際にその値が使われるのは `HOLD` モード中です。
+
 ### 1. 力の sin 波追従
 action 型:
 `controller/action/TrackSineForce`
