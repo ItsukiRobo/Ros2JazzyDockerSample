@@ -283,6 +283,36 @@ private:
            std::sin(2.0 * kPi * trajectory.frequency_hz * elapsed_s + trajectory.phase_rad);
   }
 
+  static double phase_distance(double lhs, double rhs)
+  {
+    return std::abs(std::remainder(lhs - rhs, 2.0 * kPi));
+  }
+
+  static double choose_closest_phase(double candidate_a, double candidate_b, double reference_phase)
+  {
+    if (phase_distance(candidate_a, reference_phase) <= phase_distance(candidate_b, reference_phase)) {
+      return candidate_a;
+    }
+    return candidate_b;
+  }
+
+  static double compute_aligned_force_phase(
+    double amplitude_n,
+    double offset_n,
+    double measured_force_n,
+    double requested_phase_rad)
+  {
+    if (amplitude_n <= 0.0) {
+      return requested_phase_rad;
+    }
+
+    const double normalized_force =
+      clamp((measured_force_n - offset_n) / amplitude_n, -1.0, 1.0);
+    const double principal_phase = std::asin(normalized_force);
+    const double secondary_phase = kPi - principal_phase;
+    return choose_closest_phase(principal_phase, secondary_phase, requested_phase_rad);
+  }
+
   double current_desired_force_n(const std::chrono::steady_clock::time_point & now)
   {
     switch (control_mode_) {
@@ -379,6 +409,7 @@ private:
     measured_head_pressure_kpa_ = head_pressure_kpa;
     measured_rod_pressure_kpa_ = rod_pressure_kpa;
     measured_force_n_ = measured_force_n;
+    has_force_measurement_ = true;
     measured_length_mm_ = measured_length_mm;
     has_length_measurement_ = true;
 
@@ -465,11 +496,32 @@ private:
   {
     std::shared_ptr<GoalHandleTrackSineForce> previous_force_goal;
     std::shared_ptr<GoalHandleTrackSineLength> previous_length_goal;
+    double aligned_phase_rad = 0.0;
     {
       std::lock_guard<std::mutex> lock(state_mutex_);
+      if (!has_force_measurement_) {
+        auto result = std::make_shared<TrackSineForce::Result>();
+        result->success = false;
+        result->message = "No force measurement received yet";
+        goal_handle->abort(result);
+        return;
+      }
+
       previous_force_goal = active_force_goal_;
       previous_length_goal = active_length_goal_;
       const auto goal = goal_handle->get_goal();
+      aligned_phase_rad = compute_aligned_force_phase(
+        goal->amplitude_n, goal->offset_n, measured_force_n_, goal->phase_rad);
+      if (goal->amplitude_n > 0.0) {
+        const double normalized_force =
+          (measured_force_n_ - goal->offset_n) / goal->amplitude_n;
+        if (normalized_force < -1.0 || normalized_force > 1.0) {
+          RCLCPP_WARN(
+            this->get_logger(),
+            "Force goal start %.3f N is outside waveform range [%.3f, %.3f] N; phase aligned to nearest reachable point",
+            measured_force_n_, goal->offset_n - goal->amplitude_n, goal->offset_n + goal->amplitude_n);
+        }
+      }
       active_force_goal_ = goal_handle;
       active_length_goal_.reset();
       active_force_sine_ = SineTrajectory{
@@ -477,7 +529,7 @@ private:
         goal->offset_n,
         goal->frequency_hz,
         goal->duration_s,
-        goal->phase_rad,
+        aligned_phase_rad,
         std::chrono::steady_clock::now()};
       active_length_sine_.reset();
       control_mode_ = ControlMode::kForceSineTracking;
@@ -725,6 +777,7 @@ private:
   double measured_head_pressure_kpa_{0.0};
   double measured_rod_pressure_kpa_{0.0};
   double measured_force_n_{0.0};
+  bool has_force_measurement_{false};
   double measured_length_mm_{0.0};
   bool has_length_measurement_{false};
   double desired_force_n_{0.0};
