@@ -32,9 +32,9 @@ STD_TOPICS=(
 )
 
 ######### 拡張機能 ##########
-# Paramter保存の有効/無効（デフォルトは有効）
+# Paramter保存の有効/無効 1:有効(デフォルト)、0:無効
 ENABLE_PARAMS_DUMP="${ENABLE_PARAMS_DUMP:-1}"
-# rosbag2_std -> ros1bag 変換の有効/無効（デフォルトは有効）
+# rosbag2_std -> ros1bag 変換の有効/無効 1:有効(デフォルト)、0:無効
 ENABLE_ROS1_CONVERT="${ENABLE_ROS1_CONVERT:-1}"
 #############################
 

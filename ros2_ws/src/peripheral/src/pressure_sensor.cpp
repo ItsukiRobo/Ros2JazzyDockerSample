@@ -1,3 +1,5 @@
+#include "signal_utility/low_pass_filter.hpp"
+
 #include "rclcpp/rclcpp.hpp"
 
 #include "std_msgs/msg/float32_multi_array.hpp"
@@ -25,9 +27,11 @@ public:
     this->declare_parameter<std::vector<int64_t>>("sensor_idx", {0});
     this->declare_parameter<std::vector<std::string>>("sensor_type_str", {"101kPa"});
     this->declare_parameter<std::string>("publish_topic_name", "/pressure");
+    this->declare_parameter<double>("cutoff_frequency_hz", 10.0);
 
     this->get_parameter("subscribe_topic_name", subscribe_topic_name_);
     this->get_parameter("publish_topic_name", publish_topic_name_);
+    this->get_parameter("cutoff_frequency_hz", cutoff_frequency_hz_);
 
     const auto sensor_idx_param = this->get_parameter("sensor_idx").as_integer_array();
     const auto sensor_type_param = this->get_parameter("sensor_type_str").as_string_array();
@@ -35,12 +39,16 @@ public:
     if (sensor_idx_param.empty()) {
       throw std::runtime_error("sensor_idx must not be empty");
     }
+    if (cutoff_frequency_hz_ < 0.0) {
+      throw std::runtime_error("cutoff_frequency_hz must be non-negative");
+    }
     if (sensor_idx_param.size() != sensor_type_param.size()) {
       throw std::runtime_error("sensor_idx and sensor_type_str must have the same length");
     }
 
     sensor_indices_.reserve(sensor_idx_param.size());
     sensor_types_.reserve(sensor_type_param.size());
+    lpf_.reserve(sensor_idx_param.size());
 
     for (size_t i = 0; i < sensor_idx_param.size(); ++i) {
       if (sensor_idx_param[i] < 0) {
@@ -48,6 +56,7 @@ public:
       }
       sensor_indices_.push_back(static_cast<size_t>(sensor_idx_param[i]));
       sensor_types_.push_back(parse_sensor_type(sensor_type_param[i]));
+      lpf_.emplace_back(cutoff_frequency_hz_, kSamplingPeriodS);
     }
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -58,8 +67,8 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "pressure_sensor subscribes to '%s' and publishes to '%s'",
-      subscribe_topic_name_.c_str(), publish_topic_name_.c_str());
+      "pressure_sensor subscribes to '%s' and publishes to '%s' with %.1f Hz LPF",
+      subscribe_topic_name_.c_str(), publish_topic_name_.c_str(), cutoff_frequency_hz_);
   }
 
 private:
@@ -67,6 +76,7 @@ private:
   static constexpr float kVoltageMax = 5.0f;
   static constexpr float kRange101kPa = 101.0f;
   static constexpr float kRange1MPa = 1000.0f;
+  static constexpr double kSamplingPeriodS = 0.001;
 
   static PseType parse_sensor_type(const std::string & sensor_type)
   {
@@ -113,8 +123,9 @@ private:
         continue;
       }
 
-      out_msg.data.push_back(
-        convert_voltage_to_pressure(msg->data[input_index], sensor_types_[i]));
+      const float pressure =
+        convert_voltage_to_pressure(msg->data[input_index], sensor_types_[i]);
+      out_msg.data.push_back(static_cast<float>(lpf_[i].update(pressure)));
     }
 
     publisher_->publish(out_msg);
@@ -122,8 +133,10 @@ private:
 
   std::string subscribe_topic_name_;
   std::string publish_topic_name_;
+  double cutoff_frequency_hz_{10.0};
   std::vector<size_t> sensor_indices_;
   std::vector<PseType> sensor_types_;
+  std::vector<signal_utility::BilinearLowPassFilter> lpf_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 };

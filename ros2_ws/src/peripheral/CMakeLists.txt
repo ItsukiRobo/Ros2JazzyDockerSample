@@ -6,10 +6,12 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# Default to C++14
+# Default to C++20
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 20)
 endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -47,7 +49,7 @@ add_executable(cnt3204mtlpe_test src/cnt3204mtlpe_test.cpp)
 ament_target_dependencies(cnt3204mtlpe_test rclcpp std_msgs)
 
 add_executable(pressure_sensor src/pressure_sensor.cpp)
-ament_target_dependencies(pressure_sensor rclcpp std_msgs)
+ament_target_dependencies(pressure_sensor rclcpp signal_utility std_msgs)
 
 add_executable(loadcell src/loadcell.cpp)
 ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
