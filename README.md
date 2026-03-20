@@ -179,6 +179,87 @@ sudo chown -R $USER:$USER ~/sample_project/artifacts
 
 まずは動作確認として demo_nodes_cpp の talker を起動できます（コンテナに ros-jazzy-demo-nodes-cpp が入っている必要があります）。
 
+## cylinder_controller の action
+
+`cylinder_controller` は起動直後、`startup_target_force_n` を目標に `HOLD` モードで制御します。
+その後、以下の 2 つの action で目標波形を与えられます。
+goal の終了または cancel 後は `HOLD` モードへ戻ります。
+
+### 1. 力の sin 波追従
+action 型:
+`controller/action/TrackSineForce`
+
+goal:
+- `amplitude_n`
+- `offset_n`
+- `frequency_hz`
+- `duration_s`
+- `phase_rad`
+
+実行例:
+
+```bash
+ros2 action send_goal /cylinder_controller/track_sine_force controller/action/TrackSineForce "{amplitude_n: 50.0, offset_n: -50.0, frequency_hz: 0.5, duration_s: 10.0, phase_rad: 0.0}"
+```
+
+例の意味:
+- 振幅 50 N
+- オフセット -50 N
+- 周波数 0.5 Hz
+- 10 秒間
+- 初期位相 0 rad
+
+feedback:
+- `elapsed_time_s`
+- `target_force_n`
+- `measured_force_n`
+
+result:
+- `success`
+- `message`
+
+注意:
+- この機構では正の force は実現できない前提です。
+- `offset_n + amplitude_n` が 0 を超えるような goal は reject されます。
+
+### 2. 長さの sin 波追従
+action 型:
+`controller/action/TrackSineLength`
+
+goal:
+- `amplitude_mm`
+- `offset_mm`
+- `frequency_hz`
+- `duration_s`
+- `phase_rad`
+
+実行例:
+
+```bash
+ros2 action send_goal /cylinder_controller/track_sine_length controller/action/TrackSineLength "{amplitude_mm: 10.0, offset_mm: 50.0, frequency_hz: 0.5, duration_s: 10.0, phase_rad: 0.0}"
+```
+
+例の意味:
+- 振幅 10 mm
+- オフセット 50 mm
+- 周波数 0.5 Hz
+- 10 秒間
+- 初期位相 0 rad
+
+feedback:
+- `elapsed_time_s`
+- `target_length_mm`
+- `measured_length_mm`
+
+result:
+- `success`
+- `message`
+
+### 補足
+- コンテナ内または ROS 2 環境を source 済みの端末で実行します。
+- `track_sine_force` と `track_sine_length` は同時実行しません。
+- 片方の action 実行中にもう片方へ goal を送ると、新しい goal が優先され、前の goal は中断されます。
+
 ## トラブルシュート
 ### `start_driver.sh` 実行時に `Invalid module format` が出る
 

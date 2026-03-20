@@ -1,0 +1,12 @@
+float64 amplitude_n
+float64 offset_n
+float64 frequency_hz
+float64 duration_s
+float64 phase_rad
+---
+bool success
+string message
+---
+float64 elapsed_time_s
+float64 target_force_n
+float64 measured_force_n

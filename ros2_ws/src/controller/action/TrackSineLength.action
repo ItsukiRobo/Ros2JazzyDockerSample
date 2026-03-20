@@ -1,0 +1,12 @@
+float64 amplitude_mm
+float64 offset_mm
+float64 frequency_hz
+float64 duration_s
+float64 phase_rad
+---
+bool success
+string message
+---
+float64 elapsed_time_s
+float64 target_length_mm
+float64 measured_length_mm
