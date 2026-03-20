@@ -54,6 +54,9 @@ ament_target_dependencies(pressure_sensor rclcpp signal_utility std_msgs)
 add_executable(loadcell src/loadcell.cpp)
 ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
 
+add_executable(pressure_and_force src/pressure_and_force.cpp)
+ament_target_dependencies(pressure_and_force rclcpp signal_utility std_msgs)
+
 install(TARGETS
   ai1616llpe
   ai1616llpe_test
@@ -63,6 +66,7 @@ install(TARGETS
   cnt3204mtlpe_test
   pressure_sensor
   loadcell
+  pressure_and_force
   DESTINATION lib/${PROJECT_NAME}
   )
 
