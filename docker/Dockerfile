@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-rosbag2 \
  && rm -rf /var/lib/apt/lists/*
 
-# venv に rosbags
-RUN python3 -m venv /opt/venv \
+# ROS の Python パッケージも見える venv に rosbags を追加
+RUN python3 -m venv --system-site-packages /opt/venv \
  && /opt/venv/bin/python -m pip install --upgrade pip \
  && /opt/venv/bin/pip install --no-cache-dir rosbags catkin_pkg
 
