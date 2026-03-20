@@ -16,6 +16,10 @@ def generate_launch_description():
         'publish_topic_name': '/pressure',
         'cutoff_frequency_hz': 10.0,
     }
+    cnt_params = {
+        'cnt_indexes': 4,
+        'mm_per_step': 0.01,
+    }
     loadcell_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
         'publish_topic_name': '/loadcell/debug',
@@ -27,7 +31,7 @@ def generate_launch_description():
         'rated_output_voltage_v': [1.0],
         'zero_balance_voltage_v': [0.0],
     }
-    cylinder_force_contoller_params = {
+    cylinder_force_controller_params = {
         'subscribe_topic_name': '/pressure',
         'publish_topic_name': '/controller/output_voltage',
         'debug_publish_topic_name': '/controller/debug',
@@ -63,6 +67,14 @@ def generate_launch_description():
         output='screen',
         parameters=[pressure_sensor_params],
     )
+    # Counter Board  (Encoder)
+    cnt_node = Node(
+        package='peripheral',
+        executable='cnt3204mtlpe_test',
+        name='cnt3204mtlpe',
+        output='screen',
+        parameters=[cnt_params],
+    )
     # Load Cell
     loadcell_node = Node(
         package='peripheral',
@@ -72,18 +84,19 @@ def generate_launch_description():
         parameters=[loadcell_params],
     )
     # Cylinder Force Controller
-    cylinder_force_contoller_node = Node(
+    cylinder_force_controller_node = Node(
         package='controller',
-        executable='cylinder_force_contoller',
-        name='cylinder_force_contoller',
+        executable='cylinder_force_controller',
+        name='cylinder_force_controller',
         output='screen',
-        parameters=[cylinder_force_contoller_params],
+        parameters=[cylinder_force_controller_params],
     )
 
     return LaunchDescription([
         ai_node,
         ao_node,
         pressure_sensor_node,
+        cnt_node,
         loadcell_node,
-        cylinder_force_contoller_node,
+        cylinder_force_controller_node,
     ])

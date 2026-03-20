@@ -6,7 +6,8 @@
 
 - `AI1616LLPE/`: AI-1616L-LPE 用ドライバ
 - `AO1608LLPE/`: AO-1608L-LPE 用ドライバ
-- `start_driver.sh`: ドライバロードと `/dev/AI`, `/dev/AO` の作成
+- `CNT3204MTLPE/`: CNT-3204MT-LPE 用ドライバ
+- `start_driver.sh`: ドライバロードと `/dev/AI`, `/dev/AO`, `/dev/CNT` の作成
 
 ## 注意
 
@@ -50,6 +51,10 @@ make
 cd ~/sample_project/board_drivers/AO1608LLPE
 make clean
 make
+
+cd ~/sample_project/board_drivers/CNT3204MTLPE
+make clean
+make
 ```
 
 ビルド後に `vermagic` が現在カーネルと一致することを確認する。
@@ -57,6 +62,7 @@ make
 ```bash
 modinfo ~/sample_project/board_drivers/AI1616LLPE/AI1616L.ko | grep vermagic
 modinfo ~/sample_project/board_drivers/AO1608LLPE/AO1608L.ko | grep vermagic
+modinfo ~/sample_project/board_drivers/CNT3204MTLPE/CNT3204MT.ko | grep vermagic
 uname -r
 ```
 
@@ -76,13 +82,14 @@ sudo bash ./board_drivers/start_driver.sh
 ロード後は以下を確認する。
 
 ```bash
-lsmod | grep -E 'AI1616L|AO1608L'
-ls -l /dev/AI /dev/AO
-cat /proc/devices | grep -E 'AI1616L|AO1608L'
+lsmod | grep -E 'AI1616L|AO1608L|CNT3204MT'
+ls -l /dev/AI /dev/AO /dev/CNT
+cat /proc/devices | grep -E 'AI1616L|AO1608L|CNT3204MT'
 ```
 
 期待する状態:
 
 - `lsmod` に `AI1616L` と `AO1608L` が出る
-- `/dev/AI`, `/dev/AO` が存在する
-- `/proc/devices` に `AI1616L`, `AO1608L` が登録されている
+- `lsmod` に `CNT3204MT` が出る
+- `/dev/AI`, `/dev/AO`, `/dev/CNT` が存在する
+- `/proc/devices` に `AI1616L`, `AO1608L`, `CNT3204MT` が登録されている

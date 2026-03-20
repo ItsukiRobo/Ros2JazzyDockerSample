@@ -23,6 +23,7 @@ board_drivers/**/*.ko
 board_drivers/**/*.mod
 board_drivers/**/*.mod.c
 board_drivers/**/*.mod.o
-board_drivers/**/.*
+board_drivers/**/.*.cmd
+board_drivers/**/.module-common.o
 board_drivers/**/Module.symvers
 board_drivers/**/modules.order
