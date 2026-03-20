@@ -23,6 +23,7 @@ def generate_launch_description():
         'cnt_indexes': 4,
         'mm_per_step': 0.01,
         'subscribe_topic_name': '/pressure_and_force',
+        'publish_topic_name': '/pressure_force_and_length',
     }
     cylinder_force_controller_params = {
         'subscribe_topic_name': '/pressure_and_force',

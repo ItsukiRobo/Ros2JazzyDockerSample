@@ -63,13 +63,16 @@ public:
   : Node("cnt3204mtlpe")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure");
+    this->declare_parameter<std::string>("publish_topic_name", "/pressure_and_length");
     const auto subscribe_topic_name =
       this->get_parameter("subscribe_topic_name").as_string();
+    const auto publish_topic_name =
+      this->get_parameter("publish_topic_name").as_string();
 
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
       subscribe_topic_name, 10, std::bind(&CNTNode::topic_callback, this, std::placeholders::_1));
 
-    publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/pressure_and_length", 10);
+    publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(publish_topic_name, 10);
     debug_publisher_ = this->create_publisher<std_msgs::msg::UInt32MultiArray>("/cnt3204mtlpe/counter", 10);
     debug_delta_publisher_ = this->create_publisher<std_msgs::msg::Int64MultiArray>("/cnt3204mtlpe/counter_delta", 10);
 
