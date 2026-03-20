@@ -9,7 +9,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/TrackSineForce.action"
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 add_library(controller_pid SHARED
   src/pid.cpp
@@ -26,10 +34,12 @@ add_executable(cylinder_force_controller
 
 target_link_libraries(cylinder_force_controller
   controller_pid
+  ${cpp_typesupport_target}
 )
 
 ament_target_dependencies(cylinder_force_controller
   rclcpp
+  rclcpp_action
   std_msgs
 )
 
@@ -54,6 +64,7 @@ install(
 ament_export_include_directories(include)
 ament_export_libraries(controller_pid)
 ament_export_targets(export_controller_pid HAS_LIBRARY_TARGET)
+ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

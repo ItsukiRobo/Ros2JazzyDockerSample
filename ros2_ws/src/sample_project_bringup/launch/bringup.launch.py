@@ -28,12 +28,20 @@ def generate_launch_description():
         'subscribe_topic_name': '/pressure_and_force',
         'publish_topic_name': '/controller/output_voltage',
         'debug_publish_topic_name': '/controller/debug',
+        'action_name': '/cylinder_force_controller/track_sine_force',
         'head_pressure_index': 0,
         'rod_pressure_index': 1,
+        'force_index': 6,
         'control_period_s': 0.001,
         'kp': 0.04,
         'ki': 0.01,
         'kd': 0.0,
+        'force_kp': 0.1,
+        'force_ki': 0.0,
+        'force_kd': 0.0,
+        'force_output_limit_n': 200.0,
+        'base_pressure_kpa': 50.0,
+        'startup_target_force_n': 0.0,
     }
 
     # Analog Input
