@@ -16,10 +16,10 @@ namespace
 constexpr double kDefaultControlPeriodS = 0.01;
 }  // namespace
 
-class CylinderForceContollerNode : public rclcpp::Node
+class CylinderForceControllerNode : public rclcpp::Node
 {
 public:
-  CylinderForceContollerNode()
+  CylinderForceControllerNode()
   : Node("cylinder_force_controller")
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure");
@@ -63,7 +63,7 @@ public:
       debug_publish_topic_name_, rclcpp::QoS(10));
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
       subscribe_topic_name_, rclcpp::QoS(10),
-      std::bind(&CylinderForceContollerNode::pressure_callback, this, std::placeholders::_1));
+      std::bind(&CylinderForceControllerNode::pressure_callback, this, std::placeholders::_1));
 
     start_time_ = std::chrono::steady_clock::now();
 
@@ -220,7 +220,7 @@ private:
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<CylinderForceContollerNode>());
+  rclcpp::spin(std::make_shared<CylinderForceControllerNode>());
   rclcpp::shutdown();
   return 0;
 }
