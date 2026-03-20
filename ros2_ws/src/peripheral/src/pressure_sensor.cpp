@@ -5,8 +5,10 @@
 #include "std_msgs/msg/float32_multi_array.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -56,7 +58,7 @@ public:
       }
       sensor_indices_.push_back(static_cast<size_t>(sensor_idx_param[i]));
       sensor_types_.push_back(parse_sensor_type(sensor_type_param[i]));
-      lpf_.emplace_back(cutoff_frequency_hz_, kSamplingPeriodS);
+      lpf_.emplace_back(cutoff_frequency_hz_, 0.0);
     }
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
@@ -76,8 +78,6 @@ private:
   static constexpr float kVoltageMax = 5.0f;
   static constexpr float kRange101kPa = 101.0f;
   static constexpr float kRange1MPa = 1000.0f;
-  static constexpr double kSamplingPeriodS = 0.001;
-
   static PseType parse_sensor_type(const std::string & sensor_type)
   {
     if (sensor_type == "101kPa") {
@@ -109,6 +109,16 @@ private:
 
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
   {
+    const auto now = std::chrono::steady_clock::now();
+    if (last_callback_time_.has_value()) {
+      const double sampling_period_s =
+        std::chrono::duration<double>(now - *last_callback_time_).count();
+      for (auto & lpf : lpf_) {
+        lpf.set_sampling_period(sampling_period_s);
+      }
+    }
+    last_callback_time_ = now;
+
     std_msgs::msg::Float32MultiArray out_msg;
     out_msg.data.reserve(sensor_indices_.size());
 
@@ -137,6 +147,7 @@ private:
   std::vector<size_t> sensor_indices_;
   std::vector<PseType> sensor_types_;
   std::vector<signal_utility::BilinearLowPassFilter> lpf_;
+  std::optional<std::chrono::steady_clock::time_point> last_callback_time_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 };

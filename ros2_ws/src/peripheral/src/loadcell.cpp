@@ -10,6 +10,16 @@
 #include <string>
 #include <vector>
 
+/**
+ * 0kgf, 0.0V
+ * 4.072kgf, 0.519V
+ * 8.072kgf, 1.021V
+ * 12.072kgf, 1.524V
+ * 16.072kgf, 2.028V
+ * y = ax
+ * a = 7.918593157 kgf/V
+ */
+
 class LoadcellNode : public rclcpp::Node
 {
 public:
@@ -18,6 +28,7 @@ public:
   {
     this->declare_parameter<std::string>("subscribe_topic_name", "ai1616llpe/voltage");
     this->declare_parameter<std::string>("publish_topic_name", "/loadcell");
+    this->declare_parameter<bool>("publish_raw_difference", true);
     this->declare_parameter<std::vector<int64_t>>("signal_plus_idx", {0});
     this->declare_parameter<std::vector<int64_t>>("signal_minus_idx", {1});
     this->declare_parameter<std::vector<double>>("cutoff_frequency_hz", {0.0});
@@ -27,6 +38,7 @@ public:
 
     this->get_parameter("subscribe_topic_name", subscribe_topic_name_);
     this->get_parameter("publish_topic_name", publish_topic_name_);
+    this->get_parameter("publish_raw_difference", publish_raw_difference_);
     const auto signal_plus_idx_param = this->get_parameter("signal_plus_idx").as_integer_array();
     const auto signal_minus_idx_param = this->get_parameter("signal_minus_idx").as_integer_array();
     const auto cutoff_frequency_param = this->get_parameter("cutoff_frequency_hz").as_double_array();
@@ -90,16 +102,17 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "%zu loadcells processed",
-      signal_plus_indices_.size());
+      "%zu loadcells processed, publishing %s on %s",
+      signal_plus_indices_.size(),
+      publish_raw_difference_ ? "raw differential voltage" : "converted load",
+      publish_topic_name_.c_str());
   }
 
 private:
   double convert_voltage_to_load(double differential_voltage, size_t loadcell_index) const
   {
     return
-      (differential_voltage - zero_balance_voltage_v_[loadcell_index]) *
-      rated_load_n_[loadcell_index] / rated_output_voltage_v_[loadcell_index];
+      (differential_voltage) * 7.918593157 * 9.807;
   }
 
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
@@ -127,7 +140,12 @@ private:
         continue;
       }
 
-      const double differential_voltage = msg->data[plus_index] - msg->data[minus_index];
+      const double differential_voltage =  msg->data[minus_index] - msg->data[plus_index];
+      if (publish_raw_difference_) {
+        out_msg.data.push_back(static_cast<float>(differential_voltage));
+        continue;
+      }
+
       const double raw_load_n = convert_voltage_to_load(differential_voltage, i);
       lpf_[i].set_sampling_period(dt_seconds);
       const double filtered_load_n = lpf_[i].update(raw_load_n);
@@ -139,6 +157,7 @@ private:
 
   std::string subscribe_topic_name_;
   std::string publish_topic_name_;
+  bool publish_raw_difference_ = false;
   std::vector<size_t> signal_plus_indices_;
   std::vector<size_t> signal_minus_indices_;
   std::vector<double> rated_load_n_;
