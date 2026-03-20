@@ -9,27 +9,23 @@ def generate_launch_description():
         'update_rate': 1000.0,
         'subscribe_topic': '/controller/output_voltage',
     }
-    pressure_sensor_params = {
+    pressure_and_force_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
-        'sensor_idx': [0, 1, 2, 3, 4, 5],
-        'sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa', '101kPa'],
-        'publish_topic_name': '/pressure',
-        'cutoff_frequency_hz': 10.0,
+        'publish_topic_name': '/pressure_and_force',
+        'pressure_sensor_idx': [0, 1, 2, 3, 4, 5],
+        'pressure_sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa', '101kPa'],
+        'pressure_cutoff_frequency_hz': 10.0,
+        'loadcell_signal_plus_idx': [6],
+        'loadcell_signal_minus_idx': [7],
+        'loadcell_cutoff_frequency_hz': [10.0],
     }
     cnt_params = {
         'cnt_indexes': 4,
         'mm_per_step': 0.01,
-    }
-    loadcell_params = {
-        'subscribe_topic_name': 'ai1616llpe/voltage',
-        'publish_topic_name': '/loadcell', # [N]
-        'publish_raw_difference': False,
-        'signal_plus_idx': [6],
-        'signal_minus_idx': [7],
-        'cutoff_frequency_hz': [10.0],
+        'subscribe_topic_name': '/pressure_and_force',
     }
     cylinder_force_controller_params = {
-        'subscribe_topic_name': '/pressure',
+        'subscribe_topic_name': '/pressure_and_force',
         'publish_topic_name': '/controller/output_voltage',
         'debug_publish_topic_name': '/controller/debug',
         'head_pressure_index': 0,
@@ -56,13 +52,13 @@ def generate_launch_description():
         output='screen',
         parameters=[ao_params],
     )
-    # Pressure Sensor
-    pressure_sensor_node = Node(
+    # Pressure and Force
+    pressure_and_force_node = Node(
         package='peripheral',
-        executable='pressure_sensor',
-        name='pressure_sensor',
+        executable='pressure_and_force',
+        name='pressure_and_force',
         output='screen',
-        parameters=[pressure_sensor_params],
+        parameters=[pressure_and_force_params],
     )
     # Counter Board  (Encoder)
     cnt_node = Node(
@@ -71,14 +67,6 @@ def generate_launch_description():
         name='cnt3204mtlpe',
         output='screen',
         parameters=[cnt_params],
-    )
-    # Load Cell
-    loadcell_node = Node(
-        package='peripheral',
-        executable='loadcell',
-        name='loadcell',
-        output='screen',
-        parameters=[loadcell_params],
     )
     # Cylinder Force Controller
     cylinder_force_controller_node = Node(
@@ -92,8 +80,7 @@ def generate_launch_description():
     return LaunchDescription([
         ai_node,
         ao_node,
-        pressure_sensor_node,
+        pressure_and_force_node,
         cnt_node,
-        loadcell_node,
         cylinder_force_controller_node,
     ])
