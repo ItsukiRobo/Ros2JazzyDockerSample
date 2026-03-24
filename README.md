@@ -209,6 +209,29 @@ ros2 service call /cylinder_controller/set_hold_target_force controller/srv/SetH
 - 指定値が実現可能範囲を外れる場合は、内部で clamp された値が `applied_target_force_n` に返ります。
 - action 実行中にも service は呼べますが、実際にその値が使われるのは `HOLD` モード中です。
 
+### loadcell 零点調整 service
+service 型:
+`peripheral/srv/ZeroLoadcell`
+
+用途:
+- `pressure_and_force` node が publish する loadcell 値について、指定 channel の現在値を 0 N 扱いにします。
+- `channel` は `loadcell_signal_plus_idx` / `loadcell_signal_minus_idx` の配列インデックスです。
+
+実行例:
+
+```bash
+ros2 service call /pressure_and_force/zero_loadcell peripheral/srv/ZeroLoadcell "{channel: 0}"
+```
+
+返り値:
+- `success`
+- `message`
+
+注意:
+- 零点調整前に `pressure_and_force` node が少なくとも 1 回は入力を受け取っている必要があります。
+- 指定した `channel` だけが調整され、他の loadcell channel には影響しません。
+- 既存の `loadcell_zero_balance_voltage_v` が設定されていても、この service 実行後はその channel の現在差電圧で上書きされます。
+
 ### 1. 力の sin 波追従
 action 型:
 `controller/action/TrackSineForce`
