@@ -15,6 +15,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -29,6 +30,12 @@ find_package(signal_utility REQUIRED)
 find_package(std_msgs REQUIRED)
 
 find_package(example_interfaces REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/ZeroLoadcell.srv"
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 add_executable(ai1616llpe src/ai1616llpe.cpp)
 ament_target_dependencies(ai1616llpe rclcpp std_msgs)
@@ -55,6 +62,7 @@ add_executable(loadcell src/loadcell.cpp)
 ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
 
 add_executable(pressure_and_force src/pressure_and_force.cpp)
+target_link_libraries(pressure_and_force ${cpp_typesupport_target})
 ament_target_dependencies(pressure_and_force rclcpp signal_utility std_msgs)
 
 install(TARGETS
@@ -86,5 +94,7 @@ if(BUILD_TESTING)
   #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()

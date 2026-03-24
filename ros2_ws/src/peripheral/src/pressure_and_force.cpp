@@ -1,5 +1,6 @@
 #include "signal_utility/low_pass_filter.hpp"
 
+#include "peripheral/srv/zero_loadcell.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 
@@ -10,6 +11,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -117,6 +119,12 @@ public:
     return signal_minus_index_;
   }
 
+  void zero_from_current_measurement(float signal_plus_voltage, float signal_minus_voltage)
+  {
+    zero_balance_voltage_v_ =
+      static_cast<double>(signal_plus_voltage) - static_cast<double>(signal_minus_voltage);
+  }
+
   float convert(
     float signal_plus_voltage, float signal_minus_voltage,
     const std::optional<double> & sampling_period_s)
@@ -184,12 +192,18 @@ public:
     subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
       subscribe_topic_name_, rclcpp::QoS(10),
       std::bind(&PressureAndForceNode::topic_callback, this, std::placeholders::_1));
+    zero_loadcell_service_ = this->create_service<peripheral::srv::ZeroLoadcell>(
+      "/pressure_and_force/zero_loadcell",
+      std::bind(
+        &PressureAndForceNode::handle_zero_loadcell, this, std::placeholders::_1,
+        std::placeholders::_2));
 
     RCLCPP_INFO(
       this->get_logger(),
-      "pressure_and_force subscribes to '%s' and publishes %zu pressures + %zu forces on '%s'",
+      "pressure_and_force subscribes to '%s', publishes %zu pressures + %zu forces on '%s', "
+      "service='%s'",
       subscribe_topic_name_.c_str(), pressure_sensors_.size(), loadcells_.size(),
-      publish_topic_name_.c_str());
+      publish_topic_name_.c_str(), "/pressure_and_force/zero_loadcell");
   }
 
 private:
@@ -269,8 +283,56 @@ private:
     return sampling_period_s;
   }
 
+  void handle_zero_loadcell(
+    const std::shared_ptr<peripheral::srv::ZeroLoadcell::Request> request,
+    std::shared_ptr<peripheral::srv::ZeroLoadcell::Response> response)
+  {
+    if (!last_input_msg_.has_value()) {
+      response->success = false;
+      response->message = "No input message has been received yet.";
+      return;
+    }
+
+    if (loadcells_.empty()) {
+      response->success = false;
+      response->message = "No loadcell is configured.";
+      return;
+    }
+
+    if (request->channel < 0 || static_cast<size_t>(request->channel) >= loadcells_.size()) {
+      std::ostringstream message;
+      message << "channel must be in [0, " << loadcells_.size() - 1 << "], but got "
+              << request->channel;
+      response->success = false;
+      response->message = message.str();
+      return;
+    }
+
+    const auto & input = *last_input_msg_;
+    const size_t channel = static_cast<size_t>(request->channel);
+    const size_t plus_index = loadcells_[channel].signal_plus_index();
+    const size_t minus_index = loadcells_[channel].signal_minus_index();
+    if (plus_index >= input.size() || minus_index >= input.size()) {
+      std::ostringstream message;
+      message << "loadcell[" << channel << "] input indices are out of range for cached input size "
+              << input.size();
+      response->success = false;
+      response->message = message.str();
+      return;
+    }
+    loadcells_[channel].zero_from_current_measurement(input[plus_index], input[minus_index]);
+
+    std::ostringstream message;
+    message << "Zeroed loadcell[" << channel << "]. zero_balance_voltage_v="
+            << static_cast<double>(input[plus_index]) - static_cast<double>(input[minus_index]);
+    response->success = true;
+    response->message = message.str();
+    RCLCPP_INFO(this->get_logger(), "%s", response->message.c_str());
+  }
+
   void topic_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
   {
+    last_input_msg_ = msg->data;
     const std::optional<double> sampling_period_s = update_sampling_period();
 
     std_msgs::msg::Float32MultiArray out_msg;
@@ -317,9 +379,11 @@ private:
   double pressure_cutoff_frequency_hz_{10.0};
   std::vector<PressureSensor> pressure_sensors_;
   std::vector<Loadcell> loadcells_;
+  std::optional<std::vector<float>> last_input_msg_;
   std::optional<std::chrono::steady_clock::time_point> last_callback_time_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
+  rclcpp::Service<peripheral::srv::ZeroLoadcell>::SharedPtr zero_loadcell_service_;
 };
 
 int main(int argc, char * argv[])
