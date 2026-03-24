@@ -101,10 +101,11 @@ class Loadcell
 public:
   Loadcell(
     size_t signal_plus_index, size_t signal_minus_index, double cutoff_frequency_hz,
-    double zero_balance_voltage_v)
+    double zero_balance_voltage_v, bool reverse_direction)
   : signal_plus_index_(signal_plus_index),
     signal_minus_index_(signal_minus_index),
     zero_balance_voltage_v_(zero_balance_voltage_v),
+    reverse_direction_(reverse_direction),
     lpf_(cutoff_frequency_hz, 0.0)
   {
   }
@@ -136,7 +137,8 @@ public:
     const double differential_voltage =
       static_cast<double>(signal_plus_voltage) - static_cast<double>(signal_minus_voltage) -
       zero_balance_voltage_v_;
-    const double force_n = differential_voltage * kLoadcellGainNPerV;
+    const double direction_multiplier = reverse_direction_ ? -1.0 : 1.0;
+    const double force_n = differential_voltage * kLoadcellGainNPerV * direction_multiplier;
     return static_cast<float>(lpf_.update(force_n));
   }
 
@@ -144,6 +146,7 @@ private:
   size_t signal_plus_index_;
   size_t signal_minus_index_;
   double zero_balance_voltage_v_;
+  bool reverse_direction_;
   signal_utility::BilinearLowPassFilter lpf_;
 };
 
@@ -164,6 +167,7 @@ public:
     this->declare_parameter<std::vector<int64_t>>("loadcell_signal_minus_idx", {7});
     this->declare_parameter<std::vector<double>>("loadcell_cutoff_frequency_hz", {10.0});
     this->declare_parameter<std::vector<double>>("loadcell_zero_balance_voltage_v", {0.0});
+    this->declare_parameter<std::vector<bool>>("loadcell_reverse_direction", {false});
 
     this->get_parameter("subscribe_topic_name", subscribe_topic_name_);
     this->get_parameter("publish_topic_name", publish_topic_name_);
@@ -181,11 +185,14 @@ public:
       this->get_parameter("loadcell_cutoff_frequency_hz").as_double_array();
     const auto loadcell_zero_balance_voltage_param =
       this->get_parameter("loadcell_zero_balance_voltage_v").as_double_array();
+    const auto loadcell_reverse_direction_param =
+      this->get_parameter("loadcell_reverse_direction").as_bool_array();
 
     initialize_pressure_sensors(pressure_sensor_idx_param, pressure_sensor_type_param);
     initialize_loadcells(
       loadcell_signal_plus_idx_param, loadcell_signal_minus_idx_param,
-      loadcell_cutoff_frequency_param, loadcell_zero_balance_voltage_param);
+      loadcell_cutoff_frequency_param, loadcell_zero_balance_voltage_param,
+      loadcell_reverse_direction_param);
 
     publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       publish_topic_name_, rclcpp::QoS(10));
@@ -238,7 +245,8 @@ private:
     const std::vector<int64_t> & loadcell_signal_plus_idx_param,
     const std::vector<int64_t> & loadcell_signal_minus_idx_param,
     const std::vector<double> & loadcell_cutoff_frequency_param,
-    const std::vector<double> & loadcell_zero_balance_voltage_param)
+    const std::vector<double> & loadcell_zero_balance_voltage_param,
+    const std::vector<bool> & loadcell_reverse_direction_param)
   {
     if (loadcell_signal_plus_idx_param.size() != loadcell_signal_minus_idx_param.size()) {
       throw std::runtime_error(
@@ -252,6 +260,11 @@ private:
     if (loadcell_zero_balance_voltage_param.size() != loadcell_signal_plus_idx_param.size()) {
       throw std::runtime_error(
               "loadcell_zero_balance_voltage_v must have the same length as "
+              "loadcell_signal_plus_idx");
+    }
+    if (loadcell_reverse_direction_param.size() != loadcell_signal_plus_idx_param.size()) {
+      throw std::runtime_error(
+              "loadcell_reverse_direction must have the same length as "
               "loadcell_signal_plus_idx");
     }
 
@@ -268,7 +281,8 @@ private:
         static_cast<size_t>(loadcell_signal_plus_idx_param[i]),
         static_cast<size_t>(loadcell_signal_minus_idx_param[i]),
         loadcell_cutoff_frequency_param[i],
-        loadcell_zero_balance_voltage_param[i]);
+        loadcell_zero_balance_voltage_param[i],
+        loadcell_reverse_direction_param[i]);
     }
   }
 

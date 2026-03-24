@@ -12,13 +12,14 @@ def generate_launch_description():
     pressure_and_force_params = {
         'subscribe_topic_name': 'ai1616llpe/voltage',
         'publish_topic_name': '/pressure_and_force',
-        'pressure_sensor_idx': [0, 1, 2, 3, 4, 5],
-        'pressure_sensor_type_str': ['1MPa', '1MPa', '1MPa', '1MPa', '101kPa', '101kPa'],
+        'pressure_sensor_idx': [0, 1, 4, 5],
+        'pressure_sensor_type_str': ['1MPa', '1MPa', '101kPa', '101kPa'],
         'pressure_cutoff_frequency_hz': 10.0,
-        'loadcell_signal_plus_idx': [6],
-        'loadcell_signal_minus_idx': [7],
+        'loadcell_signal_plus_idx': [2],
+        'loadcell_signal_minus_idx': [3],
         'loadcell_cutoff_frequency_hz': [10.0],
-        'loadcell_zero_balance_voltage_v': [0.0],
+        'loadcell_zero_balance_voltage_v': [-0.00793469],
+        'loadcell_reverse_direction': [True]
     }
     cnt_params = {
         'cnt_indexes': 4,
@@ -35,8 +36,8 @@ def generate_launch_description():
         'length_action_name': '/cylinder_controller/track_sine_length',
         'head_pressure_index': 0,
         'rod_pressure_index': 1,
-        'force_index': 6,
-        'length_index': 7,
+        'force_index': 4,
+        'length_index': 5,
         'control_period_s': 0.001,
         'pressure_kp': 0.04,
         'pressure_ki': 0.01,
