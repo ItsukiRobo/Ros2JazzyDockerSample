@@ -22,6 +22,7 @@ def generate_launch_description():
     cnt_params = {
         'cnt_indexes': 4,
         'mm_per_step': 0.01,
+        'reverse_direction': True,
         'subscribe_topic_name': '/pressure_and_force',
         'publish_topic_name': '/pressure_force_and_length',
     }

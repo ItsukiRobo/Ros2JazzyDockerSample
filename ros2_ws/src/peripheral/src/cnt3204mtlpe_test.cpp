@@ -20,6 +20,7 @@ uint32_t initial[4];
 
 int cnt_indexes;
 double mm_per_step;
+bool reverse_direction;
 
 int BoardOpen()
 {
@@ -80,6 +81,8 @@ public:
     this->get_parameter("~cnt_indexes", cnt_indexes);
     this->declare_parameter<double>("mm_per_step", 670.0 / 134400.0);
     this->get_parameter("mm_per_step", mm_per_step);
+    this->declare_parameter<bool>("reverse_direction", false);
+    this->get_parameter("reverse_direction", reverse_direction);
   }
 
 
@@ -109,7 +112,8 @@ private:
       int32_t signed_delta = static_cast<int32_t>(raw_delta);
       debug_delta_msg.data.push_back(static_cast<int64_t>(signed_delta));
 
-      double length = static_cast<double>(signed_delta) * mm_per_step ;  // [mm]
+      const double direction_multiplier = reverse_direction ? -1.0 : 1.0;
+      double length = static_cast<double>(signed_delta) * mm_per_step * direction_multiplier;  // [mm]
       msg1.data.push_back(length);
     }
 
