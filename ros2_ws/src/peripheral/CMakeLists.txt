@@ -55,12 +55,6 @@ ament_target_dependencies(cnt3204mtlpe rclcpp std_msgs)
 add_executable(cnt3204mtlpe_test src/cnt3204mtlpe_test.cpp)
 ament_target_dependencies(cnt3204mtlpe_test rclcpp std_msgs)
 
-add_executable(pressure_sensor src/pressure_sensor.cpp)
-ament_target_dependencies(pressure_sensor rclcpp signal_utility std_msgs)
-
-add_executable(loadcell src/loadcell.cpp)
-ament_target_dependencies(loadcell rclcpp signal_utility std_msgs)
-
 add_executable(pressure_and_force src/pressure_and_force.cpp)
 target_link_libraries(pressure_and_force ${cpp_typesupport_target})
 ament_target_dependencies(pressure_and_force rclcpp signal_utility std_msgs)
@@ -72,8 +66,6 @@ install(TARGETS
   ao1608llpe_test
   cnt3204mtlpe
   cnt3204mtlpe_test
-  pressure_sensor
-  loadcell
   pressure_and_force
   DESTINATION lib/${PROJECT_NAME}
   )
