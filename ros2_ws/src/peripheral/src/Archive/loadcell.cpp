@@ -140,7 +140,7 @@ private:
         continue;
       }
 
-      const double differential_voltage =  msg->data[minus_index] - msg->data[plus_index];
+      const double differential_voltage = msg->data[plus_index] - msg->data[minus_index];
       if (publish_raw_difference_) {
         out_msg.data.push_back(static_cast<float>(differential_voltage));
         continue;
