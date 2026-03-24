@@ -18,6 +18,7 @@ def generate_launch_description():
         'loadcell_signal_plus_idx': [6],
         'loadcell_signal_minus_idx': [7],
         'loadcell_cutoff_frequency_hz': [10.0],
+        'loadcell_zero_balance_voltage_v': [0.0],
     }
     cnt_params = {
         'cnt_indexes': 4,
