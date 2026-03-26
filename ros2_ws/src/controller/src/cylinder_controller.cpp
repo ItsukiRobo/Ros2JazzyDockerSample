@@ -20,20 +20,22 @@
 #include <string>
 #include <thread>
 
+// Parameters & functions
 namespace
 {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kDefaultControlPeriodS = 0.01;
-constexpr double kCylinderDiameterM = 0.020;
-constexpr double kRodDiameterM = 0.010;
-constexpr double kMaxPressureKPa = 1000.0;
-constexpr double kMinPressureKPa = 0.0;
-constexpr double kVoltageOffsetV = 5.0;
-constexpr double kMinCommandVoltageV = -5.0;
-constexpr double kMaxCommandVoltageV = 5.0;
-constexpr double kMinVoltageV = 0.0;
-constexpr double kMaxVoltageV = 10.0;
+constexpr double kCylinderDiameterM = 0.020;    // Cylinder bore diameter [m]
+constexpr double kRodDiameterM = 0.010;         // Rod diameter [m]
+constexpr double kMaxPressureKPa = 1000.0;      // Max pressure [kPa]
+constexpr double kMinPressureKPa = 0.0;         // Min pressure [kPa]
+constexpr double kVoltageOffsetV = 5.0;         // Voltage of neutral position [V]
+constexpr double kMinVoltageV = 0.0;            // Min voltage [V]
+constexpr double kMaxVoltageV = 10.0;           // Max voltage [V]
+constexpr double kMinCommandVoltageV = -5.0;    // Min command voltage [V]
+constexpr double kMaxCommandVoltageV = 5.0;     // Max command voltage [V]
+
 constexpr size_t kOutputChannelCount = 8;
 constexpr double kHeadAreaM2 = kPi * kCylinderDiameterM * kCylinderDiameterM / 4.0;
 constexpr double kRodAreaM2 =
@@ -80,6 +82,7 @@ public:
   CylinderForceControllerNode()
   : Node("cylinder_controller")
   {
+    // Parameter declaration and retrieval
     this->declare_parameter<std::string>("subscribe_topic_name", "/pressure_force_and_length");
     this->declare_parameter<std::string>("publish_topic_name", "/controller/output_voltage");
     this->declare_parameter<std::string>(
@@ -108,7 +111,7 @@ public:
     this->declare_parameter<double>("base_pressure_kpa", 50.0);
     this->declare_parameter<double>("startup_target_force_n", 0.0);
     this->declare_parameter<double>("feasible_force_min_n", -200.0);
-    this->declare_parameter<double>("feasible_force_max_n", 0.0);
+    this->declare_parameter<double>("feasible_force_max_n", 200.0);
 
     subscribe_topic_name_ = this->get_parameter("subscribe_topic_name").as_string();
     publish_topic_name_ = this->get_parameter("publish_topic_name").as_string();
@@ -234,9 +237,8 @@ private:
     if (feasible_force_min_n_ > feasible_force_max_n_) {
       throw std::runtime_error("feasible_force_min_n must be less than or equal to feasible_force_max_n");
     }
-    if (feasible_force_max_n_ > 0.0) {
-      throw std::runtime_error("feasible_force_max_n must be <= 0.0 for this mechanism");
-    }
+    // NOTE: feasible_force_max_n_ >= 0.0 is now allowed (loadcell direction changed).
+    //       Previously this was restricted to <= 0.0.
     if (
       !std::isfinite(length_output_force_min_n_) ||
       !std::isfinite(length_output_force_max_n_))
@@ -267,6 +269,11 @@ private:
     return std::isfinite(value);
   }
 
+  // 力指令を両チャンバの目標圧力に変換する
+  // 両側を base_pressure_kpa_ で初期化し、符号に応じて片側のみ増圧する設計。
+  // TODO(拡張余地): 左右別基準圧や、kHold 移行時に現在内圧をスナップショットして
+  //                 基準圧として使う設計に変更することで、モード切替時の圧力段差を
+  //                 低減できる。
   TargetPressures convert_force_to_target_pressures(double commanded_force_n) const
   {
     TargetPressures target{base_pressure_kpa_, base_pressure_kpa_};
@@ -326,19 +333,19 @@ private:
     return candidate_b;
   }
 
-  static double compute_aligned_force_phase(
-    double amplitude_n,
-    double offset_n,
-    double measured_force_n,
+  static double compute_aligned_phase(
+    double amplitude,
+    double offset,
+    double measured_value,
     double requested_phase_rad)
   {
-    if (amplitude_n <= 0.0) {
+    if (amplitude <= 0.0) {
       return requested_phase_rad;
     }
 
-    const double normalized_force =
-      clamp((measured_force_n - offset_n) / amplitude_n, -1.0, 1.0);
-    const double principal_phase = std::asin(normalized_force);
+    const double normalized_value =
+      clamp((measured_value - offset) / amplitude, -1.0, 1.0);
+    const double principal_phase = std::asin(normalized_value);
     const double secondary_phase = kPi - principal_phase;
     return choose_closest_phase(principal_phase, secondary_phase, requested_phase_rad);
   }
@@ -353,7 +360,7 @@ private:
     }
 
     const auto goal = active_force_goal_->get_goal();
-    active_force_sine_->phase_rad = compute_aligned_force_phase(
+    active_force_sine_->phase_rad = compute_aligned_phase(
       goal->amplitude_n, goal->offset_n, measured_force_n_, goal->phase_rad);
     active_force_sine_->offset = goal->offset_n;
     active_force_sine_->start_time = now;
@@ -381,11 +388,21 @@ private:
 
     const auto goal = active_length_goal_->get_goal();
     const double absolute_offset_mm = measured_length_mm_ + goal->offset_mm;
-    active_length_sine_->phase_rad = compute_aligned_force_phase(
+    active_length_sine_->phase_rad = compute_aligned_phase(
       goal->amplitude_mm, absolute_offset_mm, measured_length_mm_, goal->phase_rad);
     active_length_sine_->offset = absolute_offset_mm;
     active_length_sine_->start_time = now;
     active_length_sine_->initialized = true;
+
+    // 長さ制御開始時のオフセット力として hold_target_force_n_ を使用する。
+    // measured_force_n_ はセンサノイズや HOLD 収束誤差を含む可能性があるため、
+    // 「意図した目標力」として確定している hold_target_force_n_ の方が堅牢。
+    // これにより length_pid_ は平衡点からのずれだけを補正すればよくなる。
+    length_control_force_offset_n_ = hold_target_force_n_;
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Length sine initialized. force offset (= hold_target): %.3f N",
+      length_control_force_offset_n_);
 
     if (goal->amplitude_mm > 0.0) {
       const double normalized_length = -goal->offset_mm / goal->amplitude_mm;
@@ -398,36 +415,57 @@ private:
     }
   }
 
-  double current_desired_force_n(const std::chrono::steady_clock::time_point & now)
+  // --- 制御演算補助関数 ---
+
+  // kHold / kForceSineTracking 用：力フィードバック制御
+  //   setpoint_force_n: 目標力 [N]（kHold では hold_target_force_n_、kForceSine ではサイン波目標）
+  //   返り値: clamp済みの力指令 [N]
+  double compute_force_control_command(double setpoint_force_n)
   {
-    switch (control_mode_) {
-      case ControlMode::kForceSineTracking:
-        if (active_force_sine_.has_value() && active_force_sine_->initialized) {
-          return clamp(
-            compute_sine_target(*active_force_sine_, now),
-            feasible_force_min_n_, feasible_force_max_n_);
-        }
-        break;
-      case ControlMode::kLengthSineTracking:
-        if (active_length_sine_.has_value() && active_length_sine_->initialized) {
-          target_length_mm_ = compute_sine_target(*active_length_sine_, now);
-          return clamp(
-            length_pid_.update(target_length_mm_, measured_length_mm_),
-            feasible_force_min_n_, feasible_force_max_n_);
-        }
-        break;
-      case ControlMode::kHold:
-        break;
-    }
-    target_length_mm_ = measured_length_mm_;
-    return hold_target_force_n_;
+    // eF = setpoint - measured → force_pid が補正量を出力
+    // PID出力をそのまま指令力として使う（setpoint + correction ではなく、
+    // force_pid_.update(setpoint, measured) の出力が直接 ΔF_cmd になる設計）
+    return clamp(
+      force_pid_.update(setpoint_force_n, measured_force_n_),
+      feasible_force_min_n_, feasible_force_max_n_);
   }
 
+  // kLengthSineTracking 用：長さフィードバック制御（力PIDを経由しない）
+  //   target_length_mm: 目標長さ [mm]（サイン波軌道から計算）
+  //   返り値: clamp済みの力指令 [N]
+  //           = 開始時発揮力オフセット + length_pid 出力（位置誤差→力相当）
+  double compute_length_control_command(double target_length_mm)
+  {
+    const double delta_force_n = length_pid_.update(target_length_mm, measured_length_mm_);
+    // length_control_force_offset_n_ は制御開始時にスナップショットした測定発揮力
+    // これを加算することで、重力・摩擦等の静的バランス点を初期値として扱う
+    return clamp(
+      length_control_force_offset_n_ + delta_force_n,
+      feasible_force_min_n_, feasible_force_max_n_);
+  }
+
+  // デバッグ出力
+  // [0] control_mode
+  // [1] hold_target_force_n (kHold: 目標力, その他: 参考値)
+  // [2] setpoint_force_or_length_mm
+  //       kHold:              目標力 [N]
+  //       kForceSineTracking: サイン波目標力 [N]
+  //       kLengthSineTracking: サイン波目標長さ [mm]
+  // [3] commanded_force_n
+  //       kHold/kForceSine:   力PID出力（力指令） [N]
+  //       kLengthSineTracking: オフセット + 長さPID出力（力PIDは経由しない） [N]
+  // [4] measured_force_n
+  // [5] target_length_mm (kLengthSine: 現在の目標長さ, その他: 直近値)
+  // [6] measured_length_mm
+  // [7] target_head_pressure_kpa
+  // [8] target_rod_pressure_kpa
+  // [9] measured_head_pressure_kpa
+  // [10] measured_rod_pressure_kpa
   void publish_command(
     double head_output_voltage_v,
     double rod_output_voltage_v,
-    double desired_force_n,
-    double commanded_force_n,
+    double setpoint_force_or_length,   // 意味はモードによって異なる（コメント参照）
+    double commanded_force_n,          // kLengthSine 時は「長さPID出力＋オフセット」
     const TargetPressures & target_pressures)
   {
     std_msgs::msg::Float32MultiArray out_msg;
@@ -441,7 +479,7 @@ private:
     std_msgs::msg::Float32MultiArray debug_msg;
     debug_msg.data.push_back(static_cast<float>(mode_to_number(control_mode_)));
     debug_msg.data.push_back(static_cast<float>(hold_target_force_n_));
-    debug_msg.data.push_back(static_cast<float>(desired_force_n));
+    debug_msg.data.push_back(static_cast<float>(setpoint_force_or_length));
     debug_msg.data.push_back(static_cast<float>(commanded_force_n));
     debug_msg.data.push_back(static_cast<float>(measured_force_n_));
     debug_msg.data.push_back(static_cast<float>(target_length_mm_));
@@ -500,23 +538,70 @@ private:
     initialize_active_force_sine_if_needed(now);
     initialize_active_length_sine_if_needed(now);
 
-    const double desired_force_n = current_desired_force_n(now);
-    const double force_correction_n = force_pid_.update(desired_force_n, measured_force_n_);
-    const double commanded_force_n = clamp(
-      desired_force_n + force_correction_n,
-      feasible_force_min_n_, feasible_force_max_n_);
+    // --- ControlMode ごとに制御方針を分岐 ---
+    //
+    // kHold:
+    //   一定目標力 hold_target_force_n_ に対するフィードバック力制御
+    //   commanded = force_pid(hold_target, measured_force)
+    //
+    // kForceSineTracking:
+    //   サイン波目標力 F_des(t) に対するフィードバック力制御
+    //   commanded = force_pid(F_des(t), measured_force)
+    //
+    // kLengthSineTracking:
+    //   長さ誤差から length_pid が補正力を生成し、開始時発揮力オフセットを加算して直接圧力分配
+    //   force_pid は経由しない（外側:長さPID → 内側:圧力PID の二重ループ構造）
+    //   commanded = offset_force + length_pid(x_des(t), measured_length)
+
+    double commanded_force_n = 0.0;
+    double setpoint_for_debug = 0.0;   // デバッグ出力用：モードにより意味が異なる
+
+    switch (control_mode_) {
+      case ControlMode::kHold:
+        // 目標力への偏差を force_pid_ で解消する
+        setpoint_for_debug = hold_target_force_n_;
+        commanded_force_n = compute_force_control_command(hold_target_force_n_);
+        break;
+
+      case ControlMode::kForceSineTracking:
+        // サイン波目標力が未初期化の場合は現在の測定力を目標とする
+        if (active_force_sine_.has_value() && active_force_sine_->initialized) {
+          setpoint_for_debug = clamp(
+            compute_sine_target(*active_force_sine_, now),
+            feasible_force_min_n_, feasible_force_max_n_);
+        } else {
+          setpoint_for_debug = measured_force_n_;
+        }
+        commanded_force_n = compute_force_control_command(setpoint_for_debug);
+        break;
+
+      case ControlMode::kLengthSineTracking:
+        // サイン波目標長さが未初期化の場合は現在の測定長さを目標とする
+        if (active_length_sine_.has_value() && active_length_sine_->initialized) {
+          target_length_mm_ = compute_sine_target(*active_length_sine_, now);
+        } else {
+          target_length_mm_ = measured_length_mm_;
+        }
+        setpoint_for_debug = target_length_mm_;  // デバッグ [mm] として出力
+        // force_pid_ は経由しない：長さPID出力 + 開始時オフセット → 直接圧力分配
+        commanded_force_n = compute_length_control_command(target_length_mm_);
+        break;
+    }
+
     const TargetPressures target_pressures = convert_force_to_target_pressures(commanded_force_n);
 
+    // Pressure PIDs: output is command voltage
     const double head_command_voltage_v =
       head_pid_.update(target_pressures.head_kpa, measured_head_pressure_kpa_);
     const double rod_command_voltage_v =
       rod_pid_.update(target_pressures.rod_kpa, measured_rod_pressure_kpa_);
+
+    // Change Voltage range to [0, 10] V for hardware interface
     const double head_output_voltage_v = command_to_output_voltage(head_command_voltage_v);
     const double rod_output_voltage_v = command_to_output_voltage(rod_command_voltage_v);
 
-    desired_force_n_ = desired_force_n;
     publish_command(
-      head_output_voltage_v, rod_output_voltage_v, desired_force_n_, commanded_force_n,
+      head_output_voltage_v, rod_output_voltage_v, setpoint_for_debug, commanded_force_n,
       target_pressures);
   }
 
@@ -872,6 +957,7 @@ private:
     }
   }
 
+  // --- メンバ変数 ---
   controller::Pid head_pid_;
   controller::Pid rod_pid_;
   controller::Pid force_pid_;
@@ -888,8 +974,8 @@ private:
   int length_index_{0};
   double base_pressure_kpa_{50.0};
   double hold_target_force_n_{0.0};
-  double feasible_force_min_n_{-200.0};
-  double feasible_force_max_n_{0.0};
+  double feasible_force_min_n_{0.0};
+  double feasible_force_max_n_{200.0};
   double length_output_force_min_n_{-20.0};
   double length_output_force_max_n_{0.0};
   double measured_head_pressure_kpa_{0.0};
@@ -898,8 +984,8 @@ private:
   bool has_force_measurement_{false};
   double measured_length_mm_{0.0};
   bool has_length_measurement_{false};
-  double desired_force_n_{0.0};
   double target_length_mm_{0.0};
+  double length_control_force_offset_n_{0.0}; // kLengthSineTracking 開始時の hold_target_force_n_ スナップショット,length_pid_ 出力に加算するフィードフォワードオフセット
   ControlMode control_mode_{ControlMode::kHold};
   std::optional<SineTrajectory> active_force_sine_;
   std::optional<SineTrajectory> active_length_sine_;
